@@ -1,0 +1,340 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the CrowdCare Guardian system, including administrators, volunteers, and control room operators.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "username": {
+          "type": "string",
+          "description": "Unique username for logging into the system."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user, used for contact and account recovery.",
+          "format": "email"
+        },
+        "role": {
+          "type": "string",
+          "description": "The assigned role of the user, determining access levels (e.g., 'Admin', 'Volunteer', 'Operator')."
+        },
+        "firstName": {
+          "type": "string",
+          "description": "The first name of the user."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "The last name of the user."
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "Contact phone number for the user."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the user account was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the user account was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "email",
+        "role",
+        "firstName",
+        "lastName",
+        "createdAt"
+      ]
+    },
+    "Child": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Child",
+      "type": "object",
+      "description": "Stores the registration details for a child, including parent and emergency contact information, for the CrowdCare Guardian system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Child entity. This ID is embedded in the QR code."
+        },
+        "childName": {
+          "type": "string",
+          "description": "The full name of the registered child."
+        },
+        "parentName": {
+          "type": "string",
+          "description": "The full name of the parent or guardian registering the child."
+        },
+        "parentMobileNumber": {
+          "type": "string",
+          "description": "The primary mobile number for the parent or guardian, used for notifications."
+        },
+        "emergencyContactName": {
+          "type": "string",
+          "description": "Name of an alternative emergency contact person."
+        },
+        "emergencyContactNumber": {
+          "type": "string",
+          "description": "Mobile number for the alternative emergency contact."
+        },
+        "registeredById": {
+          "type": "string",
+          "description": "Reference to the User (Admin) who registered this child. (Relationship: User 1:N Child)"
+        },
+        "registrationDate": {
+          "type": "string",
+          "description": "Timestamp when the child was registered in the system.",
+          "format": "date-time"
+        },
+        "qrCodeUrl": {
+          "type": "string",
+          "description": "URL to the generated QR code image for this child, useful for reprinting.",
+          "format": "uri"
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates if the child's registration is currently active for an ongoing event."
+        }
+      },
+      "required": [
+        "id",
+        "childName",
+        "parentName",
+        "parentMobileNumber",
+        "registeredById",
+        "registrationDate",
+        "isActive"
+      ]
+    },
+    "RescueEvent": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "RescueEvent",
+      "type": "object",
+      "description": "Records an instance where a child's QR code was scanned by a volunteer, initiating a rescue alert in the CrowdCare Guardian system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the RescueEvent entity."
+        },
+        "childId": {
+          "type": "string",
+          "description": "Reference to the Child entity that was found. (Relationship: Child 1:N RescueEvent)"
+        },
+        "volunteerId": {
+          "type": "string",
+          "description": "Reference to the User (Volunteer) who initiated this rescue event. (Relationship: User 1:N RescueEvent)"
+        },
+        "scanTime": {
+          "type": "string",
+          "description": "Timestamp when the child's QR code was scanned.",
+          "format": "date-time"
+        },
+        "locationLatitude": {
+          "type": "number",
+          "description": "Latitude coordinate of the rescue location."
+        },
+        "locationLongitude": {
+          "type": "number",
+          "description": "Longitude coordinate of the rescue location."
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status of the rescue event (e.g., 'Scanned', 'Processing', 'Parent Notified', 'Child Reunited', 'Duplicate')."
+        },
+        "statusUpdateTime": {
+          "type": "string",
+          "description": "Timestamp of the last update to the rescue event's status.",
+          "format": "date-time"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Any additional notes or remarks from volunteers or operators regarding the event."
+        },
+        "isDuplicate": {
+          "type": "boolean",
+          "description": "Flag indicating if this rescue event was identified as a potential duplicate by the AI system."
+        },
+        "processedByUserId": {
+          "type": "string",
+          "description": "Reference to the User (Operator) who last processed or updated this event. (Relationship: User 1:N RescueEvent)"
+        },
+        "resolvedTime": {
+          "type": "string",
+          "description": "Timestamp when the rescue event was marked as fully resolved (e.g., child reunited with parent).",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "childId",
+        "volunteerId",
+        "scanTime",
+        "locationLatitude",
+        "locationLongitude",
+        "status",
+        "statusUpdateTime",
+        "isDuplicate"
+      ]
+    },
+    "NotificationLog": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "NotificationLog",
+      "type": "object",
+      "description": "Records details of notifications sent to parents regarding rescue events in the CrowdCare Guardian system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the NotificationLog entry."
+        },
+        "rescueEventId": {
+          "type": "string",
+          "description": "Reference to the RescueEvent this notification pertains to. (Relationship: RescueEvent 1:N NotificationLog)"
+        },
+        "recipientMobileNumber": {
+          "type": "string",
+          "description": "The mobile number to which the notification was sent."
+        },
+        "notificationType": {
+          "type": "string",
+          "description": "Type of notification sent (e.g., 'SMS', 'Push Notification', 'WiFi Alert')."
+        },
+        "messageBody": {
+          "type": "string",
+          "description": "The actual content of the message sent to the parent."
+        },
+        "sentTime": {
+          "type": "string",
+          "description": "Timestamp when the notification was sent.",
+          "format": "date-time"
+        },
+        "deliveryStatus": {
+          "type": "string",
+          "description": "Status of the notification delivery (e.g., 'Sent', 'Delivered', 'Failed', 'Read')."
+        }
+      },
+      "required": [
+        "id",
+        "rescueEventId",
+        "recipientMobileNumber",
+        "notificationType",
+        "messageBody",
+        "sentTime",
+        "deliveryStatus"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores individual user profiles including basic information and assigned internal role for display. Access is path-based for the user's own profile."
+        }
+      },
+      {
+        "path": "/roles_admin/{adminId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Collection for explicit administrative role assignment. The existence of a document at this path signifies that 'adminId' has administrative privileges, enabling DBAC without requiring a `get()` call to a parent document. Used for authorization independence.",
+          "params": [
+            {
+              "name": "adminId",
+              "description": "The unique identifier of the user who possesses the Admin role."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_operator/{operatorId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Collection for explicit operator role assignment. The existence of a document at this path signifies that 'operatorId' has control room operator privileges, enabling DBAC without requiring a `get()` call to a parent document. Used for authorization independence.",
+          "params": [
+            {
+              "name": "operatorId",
+              "description": "The unique identifier of the user who possesses the Operator role."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/children/{childId}",
+        "definition": {
+          "entityName": "Child",
+          "schema": {
+            "$ref": "#/backend/entities/Child"
+          },
+          "description": "Stores registration details for children. Accessible by Admins and Operators. Includes 'registeredById' for audit, but authorization is based on global roles for full access. Supports QAPs for listing all children by authorized roles.",
+          "params": [
+            {
+              "name": "childId",
+              "description": "The unique identifier for the child's registration record."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/rescueEvents/{rescueEventId}",
+        "definition": {
+          "entityName": "RescueEvent",
+          "schema": {
+            "$ref": "#/backend/entities/RescueEvent"
+          },
+          "description": "Records instances of lost children being found. Accessible by Admins (full access) and Operators (read/update). Volunteers can create new events and view their own initiated events, facilitated by the denormalized 'volunteerId' field for authorization independence and QAP-compliant list queries.",
+          "params": [
+            {
+              "name": "rescueEventId",
+              "description": "The unique identifier for a specific rescue event."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/rescueEvents/{rescueEventId}/notificationLogs/{notificationLogId}",
+        "definition": {
+          "entityName": "NotificationLog",
+          "schema": {
+            "$ref": "#/backend/entities/NotificationLog"
+          },
+          "description": "Logs notifications sent regarding a specific rescue event. Access is granted to Admins and Operators based on their global roles, ensuring authorization independence from the parent 'rescueEvent' document for these roles. Nested to provide clear contextual relationship with its parent rescue event.",
+          "params": [
+            {
+              "name": "rescueEventId",
+              "description": "The unique identifier of the parent rescue event to which this notification log pertains."
+            },
+            {
+              "name": "notificationLogId",
+              "description": "The unique identifier for a specific notification log entry."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The proposed Firestore structure prioritizes security, scalability, and debuggability by strictly adhering to the mandated design principles, especially Authorization Independence and QAP compliance.\n\n**Authorization Independence via Denormalization:**\n\n1.  **Global Roles:** User roles (Admin, Operator) are segregated into dedicated top-level collections (`/roles_admin/{adminId}`, `/roles_operator/{operatorId}`). Authorization rules for these roles will check for the *existence* of a document at these paths, avoiding any `get()` operations on the primary `/users/{userId}` collection. This ensures that a user's role can be verified atomically and independently of their user profile data.\n2.  **Volunteer-Initiated Events:** For `RescueEvent` documents, the `volunteerId` is explicitly stored within each document. This allows volunteers to query and access *only their own* `RescueEvent` records without needing to perform a `get()` on their `/users/{userId}` profile or any other parent document to determine ownership. This field is self-contained for authorization.\n3.  **Nested Collections:** `NotificationLog` is a subcollection of `RescueEvent`. While access to subcollections often depends on parent document attributes, in this design, `NotificationLog` access is primarily granted to users with 'Operator' or 'Admin' global roles. Since these roles are verified independently via `/roles_operator/{operatorId}` or `/roles_admin/{adminId}` existence checks, no `get()` operation on the parent `RescueEvent` document is required for authorization. This ensures atomic creation and management of `NotificationLog` entries.\n\n**QAPs (Secure List Operations) Support:**\n\n1.  **Role-Based Listing:** For entities like `Child` and `RescueEvent` where Admins and Operators need to view *all* records, the security rules will simply check the presence of the `request.auth.uid` in the respective `/roles_admin` or `/roles_operator` collections. This allows for efficient `list` operations without filtering data at the rules level.\n2.  **User-Scoped Listing:** Volunteers can securely `list` their own `RescueEvent` records using a `where('volunteerId', '==', request.auth.uid)` query. This pattern is inherently QAP-compliant as Firestore security rules can validate this query against the `volunteerId` field in each document, ensuring only owned documents are returned.\n3.  **Homogeneous Collections:** Each collection (e.g., `/children`, `/rescueEvents`) maintains a homogeneous security posture. This means all documents within a given collection follow the same access rules (e.g., all `Child` documents are accessible to Admins/Operators). This simplifies security rules significantly by avoiding complex logic to differentiate document types or states within a single collection for authorization purposes.\n\nBy implementing these strategies, the data structure provides clear, explicit authorization intent, reduces rule complexity, and enhances system performance and debugging capabilities."
+  }
+}

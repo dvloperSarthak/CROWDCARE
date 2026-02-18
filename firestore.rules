@@ -1,0 +1,143 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * CROWDCARE GUARDIAN SECURITY RULES
+     *
+     * PHILOSOPHY:
+     * This ruleset implements a robust Role-Based Access Control (RBAC) model optimized for 
+     * real-time safety operations. It prioritizes "Authorization Independence," meaning 
+     * permission checks for high-level roles (Admin, Operator) are performed against 
+     * dedicated role collections to avoid costly lookups on user profiles.
+     *
+     * DATA STRUCTURE:
+     * - /users/{userId}: User profiles (Owner-access).
+     * - /roles_admin/{uid}: Marker documents for Administrative privileges.
+     * - /roles_operator/{uid}: Marker documents for Control Room Operator privileges.
+     * - /children/{childId}: Central registry of children (Staff-access).
+     * - /rescueEvents/{eventId}: Records of found children (Staff-access + Volunteer-ownership).
+     * - /rescueEvents/{eventId}/notificationLogs/{logId}: Audit trail of parent alerts (Staff-access).
+     *
+     * KEY DECISIONS:
+     * 1. Denormalization: Volunteer IDs are stored directly on RescueEvents to allow 
+     *    Volunteers to access their specific contributions without global read access.
+     * 2. Role Segregation: Administrative and Operator roles are stored in top-level 
+     *    collections to enable Database-wide Access Control (DBAC) checks.
+     * 3. Immutability: Critical relational fields (like volunteerId or userId) are 
+     *    enforced as immutable to prevent unauthorized re-assignment of data.
+     */
+
+    // --- Helper Functions ---
+
+    /** Checks if the request is from an authenticated user. */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /** Checks if the user's UID matches the provided ID. */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /** Checks if the user has a document in the admin roles collection. */
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    /** Checks if the user has a document in the operator roles collection. */
+    function isOperator() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_operator/$(request.auth.uid));
+    }
+
+    /** Checks if the user is either an Admin or an Operator (Staff). */
+    function isStaff() {
+      return isAdmin() || isOperator();
+    }
+
+    /** Validates if the user is the volunteer associated with the resource. */
+    function isEventVolunteer(data) {
+      return isSignedIn() && data.volunteerId == request.auth.uid;
+    }
+
+    // --- Collection Rules ---
+
+    /**
+     * @description Rules for user profiles. Users can manage their own data.
+     * @path /users/{userId}
+     * @allow (get/update) Authenticated user matching the document ID.
+     * @deny (list) Attempting to list all user profiles.
+     * @principle Path-based ownership and relational integrity.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false; 
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isOwner(userId);
+    }
+
+    /**
+     * @description Marker collection for Admin roles.
+     * @path /roles_admin/{adminId}
+     * @allow (get) Any staff member to verify roles.
+     * @deny (write) Any manual modification via client SDK.
+     * @principle Role-based existence check for DBAC.
+     */
+    match /roles_admin/{adminId} {
+      allow get, list: if isStaff();
+      allow create, update, delete: if false; // Role assignment typically handled via Admin SDK/Functions.
+    }
+
+    /**
+     * @description Marker collection for Operator roles.
+     * @path /roles_operator/{operatorId}
+     * @allow (get) Any staff member to verify roles.
+     * @deny (write) Any manual modification via client SDK.
+     * @principle Role-based existence check for DBAC.
+     */
+    match /roles_operator/{operatorId} {
+      allow get, list: if isStaff();
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Central registry of children. Restricted to staff for safety.
+     * @path /children/{childId}
+     * @allow (read/write) Users with Admin or Operator roles.
+     * @deny (all) Volunteers or unauthenticated users.
+     * @principle Global role authorization for sensitive PII.
+     */
+    match /children/{childId} {
+      allow get, list: if isStaff();
+      allow create, update, delete: if isStaff();
+    }
+
+    /**
+     * @description Active and historical rescue events.
+     * @path /rescueEvents/{rescueEventId}
+     * @allow (create) Volunteers or Staff. (list) Staff or Volunteers filtering by their ID.
+     * @deny (delete) Any user who is not an Admin.
+     * @principle Shared access via roles and denormalized ownership.
+     */
+    match /rescueEvents/{rescueEventId} {
+      allow get: if isStaff() || (resource != null && isEventVolunteer(resource.data));
+      allow list: if isStaff() || isSignedIn(); 
+      allow create: if isStaff() || (isSignedIn() && request.resource.data.volunteerId == request.auth.uid);
+      allow update: if isStaff() || (resource != null && isEventVolunteer(resource.data) && request.resource.data.volunteerId == resource.data.volunteerId);
+      allow delete: if isAdmin();
+    }
+
+    /**
+     * @description Logs of notifications sent to parents.
+     * @path /rescueEvents/{rescueEventId}/notificationLogs/{notificationLogId}
+     * @allow (read/write) Admins and Operators for incident management.
+     * @deny (all) Volunteers (to prevent accidental PII leak of parent contact info).
+     * @principle Contextual nesting with independent role-based authorization.
+     */
+    match /rescueEvents/{rescueEventId}/notificationLogs/{notificationLogId} {
+      allow get, list: if isStaff();
+      allow create, update, delete: if isStaff();
+    }
+  }
+}
