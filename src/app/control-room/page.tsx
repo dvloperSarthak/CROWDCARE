@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -8,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { AlertCircle, Check, User, Clock, Loader2, Sparkles, ShieldAlert, Phone, Navigation, ExternalLink, LocateFixed, Map as MapIcon, BellRing } from 'lucide-react';
+import { AlertCircle, Check, User, Clock, Loader2, Sparkles, ShieldAlert, Phone, PhoneCall, Navigation, ExternalLink, LocateFixed, Map as MapIcon, BellRing } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { detectDuplicateRescueAlert } from '@/ai/flows/duplicate-rescue-detection-flow';
 import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useUser, setDocumentNonBlocking } from '@/firebase';
@@ -252,10 +251,27 @@ export default function ControlRoom() {
                     </div>
                   </div>
 
-                  <div className="p-4 bg-teal-50 border-2 border-teal-100 rounded-xl space-y-1">
-                    <h4 className="text-[9px] font-black text-teal-900 uppercase tracking-widest flex items-center gap-2"><Phone className="w-3 h-3" /> Contact Command</h4>
-                    <p className="font-black text-teal-950 text-md uppercase leading-tight">{relatedChild?.parentName || 'DATA RESTRICTED'}</p>
-                    <p className="text-xl font-black text-teal-600 tracking-tighter">{relatedChild?.parentMobileNumber || '--- --- ----'}</p>
+                  <div className="p-4 bg-teal-50 border-2 border-teal-100 rounded-xl space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-1">
+                        <h4 className="text-[9px] font-black text-teal-900 uppercase tracking-widest flex items-center gap-2"><Phone className="w-3 h-3" /> Contact Command</h4>
+                        <p className="font-black text-teal-950 text-md uppercase leading-tight">{relatedChild?.parentName || 'DATA RESTRICTED'}</p>
+                        <p className="text-xl font-black text-teal-600 tracking-tighter">{relatedChild?.parentMobileNumber || '--- --- ----'}</p>
+                      </div>
+                      {relatedChild?.parentMobileNumber && (
+                        <Button 
+                          size="sm" 
+                          variant="secondary" 
+                          asChild 
+                          className="bg-teal-600 hover:bg-teal-700 text-white font-black uppercase text-[10px] h-10 px-4 shadow-lg"
+                        >
+                          <a href={`tel:${relatedChild.parentMobileNumber}`}>
+                            <PhoneCall className="w-4 h-4 mr-2" />
+                            Call Parent
+                          </a>
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="pt-4 border-t-2 space-y-3">

@@ -22,7 +22,8 @@ import {
   Map as MapIcon,
   Wifi,
   WifiOff,
-  Phone
+  Phone,
+  PhoneCall
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking, updateDocumentNonBlocking, useAuth, initiateAnonymousSignIn } from '@/firebase';
@@ -299,9 +300,22 @@ export default function VolunteerApp() {
                       <h3 className="text-2xl font-black uppercase tracking-tight truncate leading-tight">{isLoadingChild ? 'Checking Registry...' : (childData?.childName || 'Unrecognized Subject')}</h3>
                       
                       {!isLoadingChild && childData && (
-                        <div className="flex items-center gap-2 mt-1 py-1 px-2 bg-teal-500/10 rounded border border-teal-500/20 w-fit">
-                          <Phone className="w-3 h-3 text-teal-400" />
-                          <span className="text-[10px] font-black text-teal-100 uppercase tracking-widest">{childData.parentMobileNumber}</span>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="flex items-center gap-2 py-1 px-2 bg-teal-500/10 rounded border border-teal-500/20 w-fit">
+                            <Phone className="w-3 h-3 text-teal-400" />
+                            <span className="text-[10px] font-black text-teal-100 uppercase tracking-widest">{childData.parentMobileNumber}</span>
+                          </div>
+                          <Button 
+                            size="sm" 
+                            variant="secondary" 
+                            asChild 
+                            className="h-7 px-2 bg-teal-600 hover:bg-teal-700 text-white border-0"
+                          >
+                            <a href={`tel:${childData.parentMobileNumber}`}>
+                              <PhoneCall className="w-3 h-3 mr-1.5" />
+                              <span className="text-[9px] font-black uppercase">Call Parent</span>
+                            </a>
+                          </Button>
                         </div>
                       )}
                     </div>
