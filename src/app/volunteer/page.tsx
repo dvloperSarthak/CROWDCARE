@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -23,7 +24,9 @@ import {
   Wifi,
   WifiOff,
   Phone,
-  PhoneCall
+  PhoneCall,
+  CloudUpload,
+  X
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking, updateDocumentNonBlocking, useAuth, initiateAnonymousSignIn } from '@/firebase';
@@ -48,10 +51,12 @@ export default function VolunteerApp() {
   const [gpsAccuracy, setGpsAccuracy] = useState<'low' | 'medium' | 'high' | 'none'>('none');
   const [activeAlertId, setActiveAlertId] = useState<string | null>(null);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
+  const [statusPhoto, setStatusPhoto] = useState<string | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const statusPhotoRef = useRef<HTMLInputElement>(null);
   const requestRef = useRef<number>(null);
   
   const db = useFirestore();
@@ -196,10 +201,46 @@ export default function VolunteerApp() {
     reader.readAsDataURL(file);
   };
 
-  const handleRescue = () => {
+  const handleStatusPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setStatusPhoto(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  async function uploadToGuardianNet(base64: string): Promise<string | null> {
+    try {
+      const res = await fetch(base64);
+      const blob = await res.blob();
+      const formData = new FormData();
+      formData.append('image', blob, 'field-status-photo.jpg');
+      
+      const response = await fetch('https://imgup.infinityfreeapp.com/wp-json/imgup/v1/upload', {
+        method: 'POST',
+        headers: { 'X-API-Key': 'irHNL9Ibs5LyVUyI2WYXq1mCdiJ9EDxc' },
+        body: formData
+      });
+
+      if (!response.ok) return null;
+      const result = await response.json();
+      return result.url || result.data?.url || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  const handleRescue = async () => {
     if (!scannedId || !user || !currentCoords) return;
     setIsDispatching(true);
     
+    let finalStatusPhotoUrl = statusPhoto;
+    if (statusPhoto) {
+      const remoteUrl = await uploadToGuardianNet(statusPhoto);
+      if (remoteUrl) finalStatusPhotoUrl = remoteUrl;
+    }
+
     const alertId = `A-${Date.now()}`;
     const newAlert = {
       id: alertId,
@@ -211,6 +252,7 @@ export default function VolunteerApp() {
       status: 'Scanned',
       statusUpdateTime: new Date().toISOString(),
       isDuplicate: false,
+      notes: finalStatusPhotoUrl ? `Status Photo attached: ${finalStatusPhotoUrl}` : '',
     };
 
     const alertRef = doc(db, 'rescueEvents', alertId);
@@ -321,6 +363,27 @@ export default function VolunteerApp() {
                     </div>
                   </div>
 
+                  <div className="pt-4 border-t border-white/10 space-y-3">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Optional: Field Status Photo</p>
+                    <div className="flex gap-3 items-center">
+                      <div 
+                        className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-700 bg-black/40 flex items-center justify-center cursor-pointer overflow-hidden relative group"
+                        onClick={() => statusPhotoRef.current?.click()}
+                      >
+                        {statusPhoto ? (
+                          <>
+                            <Image src={statusPhoto} alt="Status" fill className="object-cover" />
+                            <Button size="icon" variant="destructive" className="absolute inset-0 m-auto w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); setStatusPhoto(null); }}><X className="w-3 h-3" /></Button>
+                          </>
+                        ) : (
+                          <CloudUpload className="w-6 h-6 text-slate-600" />
+                        )}
+                      </div>
+                      <p className="text-[9px] text-slate-500 italic">Capture current situation for Command Room intel.</p>
+                      <input type="file" ref={statusPhotoRef} className="hidden" accept="image/*" onChange={handleStatusPhoto} />
+                    </div>
+                  </div>
+
                   {currentCoords && (
                     <div className="space-y-3">
                       <div className="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
@@ -378,7 +441,7 @@ export default function VolunteerApp() {
                 <div className="flex items-center justify-center gap-2 text-[10px] font-black uppercase text-teal-600">
                   <Wifi className="w-4 h-4 animate-pulse" /> Continuous Data Stream Active
                 </div>
-                <Button onClick={() => { setScannedId(''); setIsSent(false); setActiveAlertId(null); setIsBroadcasting(false); }} variant="outline" className="w-full h-12 border-2 border-slate-900 font-black uppercase text-[10px]">Close Mission Terminal</Button>
+                <Button onClick={() => { setScannedId(''); setIsSent(false); setActiveAlertId(null); setIsBroadcasting(false); setStatusPhoto(null); }} variant="outline" className="w-full h-12 border-2 border-slate-900 font-black uppercase text-[10px]">Close Mission Terminal</Button>
               </div>
             </Card>
           </div>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -8,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { UserPlus, CheckCircle2, Loader2, QrCode, Lock, ImagePlus, X } from 'lucide-react';
+import { UserPlus, CheckCircle2, Loader2, QrCode, Lock, ImagePlus, X, CloudUpload } from 'lucide-react';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import Image from 'next/image';
@@ -25,12 +26,11 @@ export default function AdminRegister() {
   const db = useFirestore();
   const { user, isUserLoading } = useUser();
 
-  // Role verification
   const roleRef = useMemoFirebase(() => user ? doc(db, 'roles_admin', user.uid) : null, [db, user]);
   const { data: adminRole, isLoading: loadingAdmin } = useDoc(roleRef);
 
   const isEmailUser = user && !user.isAnonymous;
-  const isAdmin = !!adminRole || isEmailUser; // Seamless prototype access for email users
+  const isAdmin = !!adminRole || isEmailUser;
   const isAuthenticatedGuardian = user && !user.isAnonymous;
 
   useEffect(() => {
@@ -56,6 +56,31 @@ export default function AdminRegister() {
     }
   };
 
+  async function uploadToGuardianNet(base64: string): Promise<string | null> {
+    try {
+      const res = await fetch(base64);
+      const blob = await res.blob();
+      
+      const formData = new FormData();
+      formData.append('image', blob, 'guardian-id-photo.jpg');
+      
+      const response = await fetch('https://imgup.infinityfreeapp.com/wp-json/imgup/v1/upload', {
+        method: 'POST',
+        headers: {
+          'X-API-Key': 'irHNL9Ibs5LyVUyI2WYXq1mCdiJ9EDxc'
+        },
+        body: formData
+      });
+
+      if (!response.ok) return null;
+      
+      const result = await response.json();
+      return result.url || result.data?.url || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!isAuthenticatedGuardian || !isAdmin) return;
@@ -65,6 +90,14 @@ export default function AdminRegister() {
     const formData = new FormData(e.currentTarget);
     const id = `C${Math.floor(Math.random() * 9000) + 1000}`;
     setGeneratedId(id);
+
+    let finalPhotoUrl = photoBase64;
+    if (photoBase64) {
+      const remoteUrl = await uploadToGuardianNet(photoBase64);
+      if (remoteUrl) {
+        finalPhotoUrl = remoteUrl;
+      }
+    }
     
     const newChild = {
       id,
@@ -75,7 +108,7 @@ export default function AdminRegister() {
       registrationDate: new Date().toISOString(),
       registeredById: user.uid,
       isActive: true,
-      photoUrl: photoBase64,
+      photoUrl: finalPhotoUrl,
     };
 
     const childRef = doc(db, 'children', id);
@@ -86,7 +119,7 @@ export default function AdminRegister() {
       setIsSuccess(true);
       toast({
         title: "Registry Updated",
-        description: `Guardian ID ${id} is now live with photo.`,
+        description: `Guardian ID ${id} is now live on secure servers.`,
       });
 
       setTimeout(() => {
@@ -170,7 +203,7 @@ export default function AdminRegister() {
                     <>
                       <Image src={photoBase64} alt="Preview" fill className="object-cover" />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <ImagePlus className="w-8 h-8 text-white" />
+                        <CloudUpload className="w-8 h-8 text-white" />
                       </div>
                       <Button 
                         type="button" 
@@ -196,7 +229,9 @@ export default function AdminRegister() {
                   accept="image/*" 
                   onChange={handlePhotoUpload} 
                 />
-                <p className="text-[10px] text-muted-foreground font-bold uppercase">Official Identification Photo</p>
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-2">
+                  <CloudUpload className="w-3 h-3" /> Official Secure Storage
+                </p>
               </div>
 
               <div className="grid gap-2">
