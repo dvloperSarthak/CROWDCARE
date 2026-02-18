@@ -47,14 +47,12 @@ export default function Home() {
             </div>
           )}
 
-          {(!user || user.isAnonymous) && (
-            <Button size="lg" className="gap-2 px-8 h-12 text-lg shadow-md" asChild>
-              <Link href="/login">
-                <LogIn className="w-5 h-5" /> 
-                {user?.isAnonymous ? 'Sign in as Staff User' : 'Staff Login'}
-              </Link>
-            </Button>
-          )}
+          <Button size="lg" className="gap-2 px-8 h-12 text-lg shadow-md" asChild>
+            <Link href="/login">
+              <LogIn className="w-5 h-5" /> 
+              {user?.isAnonymous ? 'Sign in as Guardian' : 'Guardian Login'}
+            </Link>
+          </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -137,7 +135,7 @@ function RoleCard({
           </div>
           {isRestricted && (
             <div className="mt-4 pt-4 border-t border-dashed">
-              <p className="text-[10px] font-black text-destructive tracking-widest uppercase">STAFF CREDENTIALS REQUIRED</p>
+              <p className="text-[10px] font-black text-destructive tracking-widest uppercase">GUARDIAN CREDENTIALS REQUIRED</p>
             </div>
           )}
         </Link>

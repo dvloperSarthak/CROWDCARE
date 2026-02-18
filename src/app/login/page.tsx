@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -18,7 +19,7 @@ export default function LoginPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
 
-  // Redirect if already logged in
+  // Redirect if already logged in as a real user
   if (user && !user.isAnonymous) {
     router.push('/');
   }
@@ -37,7 +38,7 @@ export default function LoginPage() {
         title: "Authenticating...",
         description: "Connecting to Guardian secure gateway.",
       });
-      // Navigation is handled by the useUser hook/redirect in layout or here via timeout
+      // Navigation is usually triggered by auth state change elsewhere, but we can help it
       setTimeout(() => router.push('/'), 2000);
     } catch (error: any) {
       toast({
@@ -58,16 +59,16 @@ export default function LoginPage() {
             <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
               <LogIn className="w-6 h-6 text-primary" />
             </div>
-            <CardTitle className="text-2xl font-black">Staff Login</CardTitle>
+            <CardTitle className="text-2xl font-black">Guardian Login</CardTitle>
             <CardDescription>
-              Enter your credentials to access Admin and Control Room features.
+              Enter your credentials to access Admin and Control Room protocols.
             </CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-4">
               <div className="grid gap-2">
-                <Label htmlFor="email">Work Email</Label>
-                <Input id="email" name="email" type="email" placeholder="name@stadium.com" required />
+                <Label htmlFor="email">Guardian Email</Label>
+                <Input id="email" name="email" type="email" placeholder="guardian@stadium.com" required />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="password">Password</Label>
