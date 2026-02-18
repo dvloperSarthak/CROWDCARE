@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Printer, Search, Download, Loader2, UserCircle, Map as MapIcon, Eye, Navigation, Camera, Upload, CheckCircle2 } from 'lucide-react';
+import { Printer, Search, Download, Loader2, UserCircle, Map as MapIcon, Eye, Navigation, Camera, Upload, CheckCircle2, ExternalLink } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useFirestore, useCollection, useMemoFirebase, useUser, updateDocumentNonBlocking } from '@/firebase';
@@ -322,37 +322,46 @@ export default function ChildrenList() {
                                 <p className="font-mono text-[10px] font-bold text-slate-700 leading-tight">
                                   {latestEvent.locationLatitude.toFixed(6)}, {latestEvent.locationLongitude.toFixed(6)}
                                 </p>
-                                <Dialog>
-                                  <DialogTrigger asChild>
-                                    <Button variant="link" size="sm" className="h-auto p-0 text-[9px] font-black uppercase text-primary items-center justify-start gap-1">
-                                      <MapIcon className="w-2.5 h-2.5" /> View Tactical Map
-                                    </Button>
-                                  </DialogTrigger>
-                                  <DialogContent className="sm:max-w-2xl">
-                                    <DialogHeader>
-                                      <DialogTitle className="font-black uppercase tracking-tight">Situational Intelligence: {child.id}</DialogTitle>
-                                    </DialogHeader>
-                                    <div className="space-y-4">
-                                      <div className="w-full h-[300px] rounded-xl overflow-hidden border-2 border-slate-900 shadow-xl relative">
-                                        <TacticalMap 
-                                          alerts={[latestEvent]} 
-                                          center={[latestEvent.locationLatitude, latestEvent.locationLongitude]} 
-                                          zoom={17} 
-                                        />
+                                <div className="flex items-center gap-2">
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <Button variant="link" size="sm" className="h-auto p-0 text-[9px] font-black uppercase text-primary items-center justify-start gap-1">
+                                        <MapIcon className="w-2.5 h-2.5" /> View Tactical Map
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="sm:max-w-2xl">
+                                      <DialogHeader>
+                                        <DialogTitle className="font-black uppercase tracking-tight">Situational Intelligence: {child.id}</DialogTitle>
+                                      </DialogHeader>
+                                      <div className="space-y-4">
+                                        <div className="flex justify-end">
+                                          <Button size="sm" className="bg-primary hover:bg-primary/90 text-[10px] font-black uppercase h-8" asChild>
+                                            <a href={`https://www.google.com/maps/search/?api=1&query=${latestEvent.locationLatitude},${latestEvent.locationLongitude}`} target="_blank" rel="noopener noreferrer">
+                                              <Navigation className="w-3 h-3 mr-1.5" /> Open in App
+                                            </a>
+                                          </Button>
+                                        </div>
+                                        <div className="w-full h-[300px] rounded-xl overflow-hidden border-2 border-slate-900 shadow-xl relative">
+                                          <TacticalMap 
+                                            alerts={[latestEvent]} 
+                                            center={[latestEvent.locationLatitude, latestEvent.locationLongitude]} 
+                                            zoom={17} 
+                                          />
+                                        </div>
+                                        <div className="w-full h-[300px] rounded-xl overflow-hidden border-2 border-slate-900 shadow-xl">
+                                          <iframe
+                                            title="Google Maps Satellite Embed"
+                                            width="100%"
+                                            height="100%"
+                                            style={{ border: 0 }}
+                                            src={`https://maps.google.com/maps?q=${latestEvent.locationLatitude},${latestEvent.locationLongitude}&t=k&z=18&ie=UTF8&iwloc=&output=embed`}
+                                            allowFullScreen
+                                          ></iframe>
+                                        </div>
                                       </div>
-                                      <div className="w-full h-[300px] rounded-xl overflow-hidden border-2 border-slate-900 shadow-xl">
-                                        <iframe
-                                          title="Google Maps Satellite Embed"
-                                          width="100%"
-                                          height="100%"
-                                          style={{ border: 0 }}
-                                          src={`https://maps.google.com/maps?q=${latestEvent.locationLatitude},${latestEvent.locationLongitude}&t=k&z=18&ie=UTF8&iwloc=&output=embed`}
-                                          allowFullScreen
-                                        ></iframe>
-                                      </div>
-                                    </div>
-                                  </DialogContent>
-                                </Dialog>
+                                    </DialogContent>
+                                  </Dialog>
+                                </div>
                               </div>
                             ) : (
                               <span className="text-[10px] text-slate-300 font-bold uppercase italic">No Active Signal</span>
@@ -407,7 +416,14 @@ export default function ChildrenList() {
                                       <div className="bg-slate-900 p-4 rounded-xl border-2 border-primary/20 space-y-2 shadow-inner">
                                         <div className="flex justify-between items-center">
                                           <p className="font-mono text-xs font-bold text-slate-300">{latestEvent.locationLatitude.toFixed(6)}, {latestEvent.locationLongitude.toFixed(6)}</p>
-                                          <Badge className="bg-primary/20 border-primary text-primary text-[8px] font-black uppercase">Live Tracking</Badge>
+                                          <div className="flex items-center gap-2">
+                                            <Button size="sm" variant="outline" className="h-6 text-[8px] font-black uppercase border-primary text-primary px-2" asChild>
+                                              <a href={`https://www.google.com/maps/search/?api=1&query=${latestEvent.locationLatitude},${latestEvent.locationLongitude}`} target="_blank" rel="noopener noreferrer">
+                                                <Navigation className="w-2.5 h-2.5 mr-1" /> Open App
+                                              </a>
+                                            </Button>
+                                            <Badge className="bg-primary/20 border-primary text-primary text-[8px] font-black uppercase">Live Tracking</Badge>
+                                          </div>
                                         </div>
                                       </div>
                                       

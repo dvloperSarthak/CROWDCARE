@@ -218,9 +218,16 @@ export default function ControlRoom() {
                         </TableCell>
                         <TableCell><Badge className="text-[9px] font-black uppercase" variant={alert.isDuplicate ? "destructive" : "default"}>{alert.status}</Badge></TableCell>
                         <TableCell className="text-right">
-                          <Button size="sm" variant="ghost" className="h-7 text-[9px] font-black uppercase hover:bg-primary/10" onClick={(e) => { e.stopPropagation(); handleLocateOnMap(alert); }}>
-                            <LocateFixed className="w-3 h-3 mr-1" /> Locate
-                          </Button>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button size="sm" variant="ghost" className="h-7 text-[9px] font-black uppercase hover:bg-primary/10" onClick={(e) => { e.stopPropagation(); handleLocateOnMap(alert); }}>
+                              <LocateFixed className="w-3 h-3 mr-1" /> Locate
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 text-[9px] font-black uppercase hover:bg-primary/10 text-primary" asChild onClick={(e) => e.stopPropagation()}>
+                              <a href={`https://www.google.com/maps/search/?api=1&query=${alert.locationLatitude},${alert.locationLongitude}`} target="_blank" rel="noopener noreferrer">
+                                <Navigation className="w-3 h-3 mr-1" /> App
+                              </a>
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -272,7 +279,11 @@ export default function ControlRoom() {
                   <div className="p-4 bg-slate-900 rounded-xl border-2 border-primary/20 space-y-3 shadow-inner">
                     <div className="flex items-center justify-between">
                       <h4 className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3 animate-pulse" /> Live Telemetry</h4>
-                      <Badge className="bg-primary/20 border-primary text-primary text-[8px] font-black uppercase">Signal Locked</Badge>
+                      <Button size="sm" variant="outline" className="h-6 text-[8px] font-black uppercase border-primary text-primary px-2" asChild>
+                        <a href={`https://www.google.com/maps/search/?api=1&query=${selectedAlert.locationLatitude},${selectedAlert.locationLongitude}`} target="_blank" rel="noopener noreferrer">
+                          <Navigation className="w-2.5 h-2.5 mr-1" /> Navigate in App
+                        </a>
+                      </Button>
                     </div>
                     <div className="w-full h-40 rounded-lg overflow-hidden border-2 border-slate-700 shadow-xl">
                       <iframe

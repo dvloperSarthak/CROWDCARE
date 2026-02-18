@@ -456,6 +456,11 @@ export default function VolunteerApp() {
                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3 text-primary animate-pulse" /> Telemetry Locked</p>
                           <p className="font-mono text-[10px] font-bold text-slate-100">{currentCoords.lat.toFixed(6)}, {currentCoords.lng.toFixed(6)}</p>
                         </div>
+                        <Button size="sm" variant="outline" className="h-8 text-[9px] font-black uppercase border-primary text-primary px-3" asChild>
+                          <a href={`https://www.google.com/maps/search/?api=1&query=${currentCoords.lat},${currentCoords.lng}`} target="_blank" rel="noopener noreferrer">
+                            <Navigation className="w-3 h-3 mr-1.5" /> Open in App
+                          </a>
+                        </Button>
                       </div>
 
                       <div className="w-full h-48 rounded-xl overflow-hidden border-2 border-primary/20 relative shadow-inner">
@@ -496,6 +501,13 @@ export default function VolunteerApp() {
 
               {currentCoords && (
                  <div className="w-full h-48 rounded-3xl overflow-hidden border-4 border-slate-900 shadow-xl relative">
+                    <div className="absolute top-2 right-2 z-10">
+                      <Button size="sm" variant="outline" className="h-7 text-[8px] font-black uppercase bg-white/90 border-primary text-primary px-2 shadow-lg" asChild>
+                        <a href={`https://www.google.com/maps/search/?api=1&query=${currentCoords.lat},${currentCoords.lng}`} target="_blank" rel="noopener noreferrer">
+                          <Navigation className="w-2.5 h-2.5 mr-1" /> Navigation App
+                        </a>
+                      </Button>
+                    </div>
                     <iframe
                       title="Success Map Embed"
                       width="100%"
