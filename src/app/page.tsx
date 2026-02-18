@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { UserCog, Camera, LayoutDashboard, Fingerprint, LogIn, UserCircle, ShieldCheck, ShieldAlert, Loader2, Siren, AlertTriangle, Search } from 'lucide-react';
+import { UserCog, Camera, LayoutDashboard, Fingerprint, LogIn, UserCircle, ShieldCheck, ShieldAlert, Loader2, Siren, AlertTriangle, Search, QrCode } from 'lucide-react';
 import { useAuth, initiateAnonymousSignIn, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
@@ -10,7 +10,7 @@ import { Hero } from '@/components/ui/animated-hero';
 import { cn } from '@/lib/utils';
 import { NavBar } from '@/components/nav-bar';
 import { doc } from 'firebase/firestore';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -23,8 +23,16 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import jsQR from 'jsqr';
 
 export default function Home() {
   const auth = useAuth();
@@ -33,6 +41,11 @@ export default function Home() {
   const { toast } = useToast();
   const [isSOSLoading, setIsSOSLoading] = useState(false);
   const [statusId, setStatusId] = useState('');
+  const [isScanningQR, setIsScanningQR] = useState(false);
+  
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const requestRef = useRef<number>(null);
 
   // Role verification
   const adminRoleRef = useMemoFirebase(() => user ? doc(db, 'roles_admin', user.uid) : null, [db, user]);
@@ -46,6 +59,60 @@ export default function Home() {
   const isOperator = !!operatorRole || isEmailUser;
   const isGuardian = isAdmin || isOperator;
   const isLoadingRoles = (loadingAdmin || loadingOperator) && !isEmailUser;
+
+  const startScanning = async () => {
+    setIsScanningQR(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+        requestRef.current = requestAnimationFrame(tick);
+      }
+    } catch (err) {
+      setIsScanningQR(false);
+      toast({ variant: 'destructive', title: 'Scanner Offline', description: 'Camera access is required.' });
+    }
+  };
+
+  const stopScanning = () => {
+    if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    if (videoRef.current?.srcObject) {
+      (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+      videoRef.current.srcObject = null;
+    }
+    setIsScanningQR(false);
+  };
+
+  const tick = () => {
+    if (videoRef.current?.readyState === videoRef.current?.HAVE_ENOUGH_DATA) {
+      const canvas = canvasRef.current;
+      const video = videoRef.current;
+      if (canvas && video) {
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (context) {
+          canvas.height = video.videoHeight;
+          canvas.width = video.videoWidth;
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
+          if (code) {
+            setStatusId(code.data);
+            stopScanning();
+            window.location.href = `/status/${code.data}`;
+            return;
+          }
+        }
+      }
+    }
+    requestRef.current = requestAnimationFrame(tick);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
+  }, []);
 
   const handleGuestAccess = () => {
     if (auth && !user) {
@@ -83,7 +150,6 @@ export default function Home() {
           notes: 'URGENT: PANIC SIGNAL TRIGGERED FROM MAIN DASHBOARD',
           isSOS: true
         };
-        // Use a non-blocking approach (assuming it's provided or simple setDoc)
         import('firebase/firestore').then(({ setDoc }) => {
           setDoc(alertRef, sosData, { merge: true });
         });
@@ -112,7 +178,7 @@ export default function Home() {
              </div>
              <CardContent className="p-8 flex flex-col md:flex-row gap-4 items-center">
                 <div className="flex-1 space-y-2">
-                   <p className="text-sm font-bold text-slate-600">Enter your child's Guardian ID to track their safety status in real-time.</p>
+                   <p className="text-sm font-bold text-slate-600">Enter your child's Guardian ID or scan their QR to track their safety status in real-time.</p>
                    <div className="flex gap-2">
                       <Input 
                         placeholder="e.g., C1234" 
@@ -120,9 +186,32 @@ export default function Home() {
                         value={statusId}
                         onChange={(e) => setStatusId(e.target.value)}
                       />
+                      <Dialog open={isScanningQR} onOpenChange={(open) => !open && stopScanning()}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" className="h-12 w-12 p-0 border-2 border-slate-900 shrink-0" onClick={startScanning}>
+                            <QrCode className="w-6 h-6" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-md bg-slate-950 border-4 border-primary text-white p-0 overflow-hidden">
+                          <DialogHeader className="p-4 border-b border-white/10">
+                            <DialogTitle className="text-center font-black uppercase text-sm tracking-widest">Scanning Guardian QR</DialogTitle>
+                          </DialogHeader>
+                          <div className="relative aspect-square w-full bg-black flex items-center justify-center">
+                            <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" autoPlay muted playsInline />
+                            <canvas ref={canvasRef} className="hidden" />
+                            <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center">
+                               <div className="w-64 h-64 border-2 border-primary border-dashed rounded-3xl animate-pulse" />
+                               <div className="absolute top-0 w-full h-1 bg-primary shadow-[0_0_20px_rgba(255,119,51,1)] animate-scan-line" />
+                            </div>
+                          </div>
+                          <div className="p-4 bg-slate-900 text-center">
+                            <p className="text-[10px] font-black uppercase text-slate-400">Position the ID QR code within the frame</p>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
                       <InteractiveHoverButton 
                         text="Track Status" 
-                        className="h-12 w-48"
+                        className="h-12 w-48 shrink-0"
                         onClick={() => statusId && (window.location.href = `/status/${statusId}`)}
                       />
                    </div>
