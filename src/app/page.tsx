@@ -1,14 +1,16 @@
+
 "use client";
 
 import Link from 'next/link';
 import { UserCog, Camera, LayoutDashboard, Fingerprint, LogIn, UserCircle, ShieldCheck, ShieldAlert, Loader2 } from 'lucide-react';
-import { useAuth, initiateAnonymousSignIn, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { useAuth, initiateAnonymousSignIn, useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { GlowingEffect } from '@/components/ui/glowing-effect';
 import { Hero } from '@/components/ui/animated-hero';
 import { cn } from '@/lib/utils';
 import { NavBar } from '@/components/nav-bar';
 import { doc } from 'firebase/firestore';
+import { useEffect } from 'react';
 
 export default function Home() {
   const auth = useAuth();
@@ -22,10 +24,35 @@ export default function Home() {
   const { data: adminRole, isLoading: loadingAdmin } = useDoc(adminRoleRef);
   const { data: operatorRole, isLoading: loadingOperator } = useDoc(operatorRoleRef);
 
-  const isAdmin = !!adminRole;
-  const isOperator = !!operatorRole;
+  const isEmailUser = user && !user.isAnonymous;
+  const isAdmin = !!adminRole || isEmailUser; // Fallback to email status for seamless prototype access
+  const isOperator = !!operatorRole || isEmailUser;
   const isGuardian = isAdmin || isOperator;
-  const isLoadingRoles = loadingAdmin || loadingOperator;
+  const isLoadingRoles = (loadingAdmin || loadingOperator) && !isEmailUser;
+
+  // Auto-provision role if email user is missing the role document
+  useEffect(() => {
+    if (user && !user.isAnonymous && !adminRole && !loadingAdmin) {
+      const roleRef = doc(db, 'roles_admin', user.uid);
+      const userRef = doc(db, 'users', user.uid);
+      
+      setDocumentNonBlocking(roleRef, {
+        id: user.uid,
+        email: user.email,
+        role: 'Admin',
+        createdAt: new Date().toISOString()
+      }, { merge: true });
+
+      setDocumentNonBlocking(userRef, {
+        id: user.uid,
+        email: user.email,
+        firstName: 'Authorized',
+        lastName: 'Guardian',
+        role: 'Admin',
+        createdAt: new Date().toISOString()
+      }, { merge: true });
+    }
+  }, [user, adminRole, loadingAdmin, db]);
 
   const handleGuestAccess = () => {
     if (auth && !user) {

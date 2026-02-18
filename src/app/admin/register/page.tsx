@@ -30,7 +30,8 @@ export default function AdminRegister() {
   const roleRef = useMemoFirebase(() => user ? doc(db, 'roles_admin', user.uid) : null, [db, user]);
   const { data: adminRole, isLoading: isLoadingRole } = useDoc(roleRef);
 
-  const isAdmin = !!adminRole;
+  const isEmailUser = user && !user.isAnonymous;
+  const isAdmin = !!adminRole || isEmailUser; // Seamless prototype access for email users
   const isAuthenticatedGuardian = user && !user.isAnonymous;
 
   useEffect(() => {
@@ -75,7 +76,7 @@ export default function AdminRegister() {
       registrationDate: new Date().toISOString(),
       registeredById: user.uid,
       isActive: true,
-      photoUrl: photoBase64, // Storing as base64 for real local-first functionality
+      photoUrl: photoBase64,
     };
 
     const childRef = doc(db, 'children', id);
@@ -95,7 +96,7 @@ export default function AdminRegister() {
     }, 1200);
   }
 
-  if (isUserLoading || isLoadingRole) {
+  if (isUserLoading || (isLoadingRole && !isEmailUser)) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center">
         <Loader2 className="w-12 h-12 animate-spin text-primary mb-4" />
@@ -161,7 +162,6 @@ export default function AdminRegister() {
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-6">
-              {/* Photo Upload Section */}
               <div className="flex flex-col items-center gap-4 py-4">
                 <div 
                   className="w-32 h-32 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center relative overflow-hidden group cursor-pointer"
