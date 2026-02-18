@@ -46,23 +46,20 @@ export default function ChildrenList() {
     c.id.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
-  async function uploadToGuardianNet(file: File): Promise<string | null> {
+  async function uploadToImgBB(file: File): Promise<string | null> {
     try {
       const formData = new FormData();
-      formData.append('file', file, `guardian-id-${Date.now()}.jpg`);
+      formData.append('image', file);
       
-      const response = await fetch('https://imgup.infinityfreeapp.com/wp-json/imgup/v1/upload', {
+      const response = await fetch('https://api.imgbb.com/1/upload?key=6874d5a39ecc03ce08ca12b3f4f00fd8', {
         method: 'POST',
-        headers: {
-          'X-API-Key': 'hWGvlReZxTAx2I87po3Bjqi9lRHPfbqV'
-        },
         body: formData
       });
 
       if (!response.ok) return null;
       
       const result = await response.json();
-      return result.url || result.data?.url || result.link || result.source_url || result.guid?.rendered || null;
+      return result.data?.url || null;
     } catch (error) {
       return null;
     }
@@ -74,14 +71,14 @@ export default function ChildrenList() {
 
     setUploadingId(childId);
     
-    const remoteUrl = await uploadToGuardianNet(file);
+    const remoteUrl = await uploadToImgBB(file);
     
     if (remoteUrl) {
       const childDocRef = doc(db, 'children', childId);
       updateDocumentNonBlocking(childDocRef, { photoUrl: remoteUrl });
       toast({
         title: "Registry Updated",
-        description: "Identification photo has been synced with GuardianNet.",
+        description: "Identification photo has been synced with GuardianNet via ImgBB.",
       });
     } else {
       toast({

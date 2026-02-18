@@ -236,20 +236,19 @@ export default function VolunteerApp() {
     }
   };
 
-  async function uploadToGuardianNet(file: File): Promise<string | null> {
+  async function uploadToImgBB(file: File): Promise<string | null> {
     try {
       const formData = new FormData();
-      formData.append('file', file, `field-status-${Date.now()}.jpg`);
+      formData.append('image', file);
       
-      const response = await fetch('https://imgup.infinityfreeapp.com/wp-json/imgup/v1/upload', {
+      const response = await fetch('https://api.imgbb.com/1/upload?key=6874d5a39ecc03ce08ca12b3f4f00fd8', {
         method: 'POST',
-        headers: { 'X-API-Key': 'hWGvlReZxTAx2I87po3Bjqi9lRHPfbqV' },
         body: formData
       });
 
       if (!response.ok) return null;
       const result = await response.json();
-      return result.url || result.data?.url || result.link || result.source_url || result.guid?.rendered || null;
+      return result.data?.url || null;
     } catch (error) {
       return null;
     }
@@ -261,7 +260,7 @@ export default function VolunteerApp() {
     
     let finalStatusPhotoUrl = null;
     if (statusFile) {
-      finalStatusPhotoUrl = await uploadToGuardianNet(statusFile);
+      finalStatusPhotoUrl = await uploadToImgBB(statusFile);
     }
 
     const alertId = `A-${Date.now()}`;
@@ -285,7 +284,7 @@ export default function VolunteerApp() {
       setActiveAlertId(alertId);
       setIsDispatching(false);
       setIsSent(true);
-      toast({ title: "SITREP LIVE", description: "Broadcasting high-precision location stream." });
+      toast({ title: "SITREP LIVE", description: "Broadcasting high-precision location stream via ImgBB." });
     }, 1200);
   };
 
@@ -401,7 +400,7 @@ export default function VolunteerApp() {
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Optional: Field Status Photo</p>
                     <div className="flex gap-3 items-center">
                       <div 
-                        className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-700 bg-black/40 flex items-center justify-center cursor-pointer overflow-hidden relative group"
+                        className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-700 bg-black/40 flex items-center justify-center cursor-pointer overflow-hidden relative shadow-pointer group"
                         onClick={() => statusPhotoRef.current?.click()}
                       >
                         {statusPreview ? (
