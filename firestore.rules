@@ -18,14 +18,6 @@ service cloud.firestore {
      * - /children/{childId}: Central registry of children (Staff-access).
      * - /rescueEvents/{eventId}: Records of found children (Staff-access + Volunteer-ownership).
      * - /rescueEvents/{eventId}/notificationLogs/{logId}: Audit trail of parent alerts (Staff-access).
-     *
-     * KEY DECISIONS:
-     * 1. Denormalization: Volunteer IDs are stored directly on RescueEvents to allow 
-     *    Volunteers to access their specific contributions without global read access.
-     * 2. Role Segregation: Administrative and Operator roles are stored in top-level 
-     *    collections to enable Database-wide Access Control (DBAC) checks.
-     * 3. Immutability: Critical relational fields (like volunteerId or userId) are 
-     *    enforced as immutable to prevent unauthorized re-assignment of data.
      */
 
     // --- Helper Functions ---
@@ -65,9 +57,6 @@ service cloud.firestore {
     /**
      * @description Rules for user profiles. Users can manage their own data.
      * @path /users/{userId}
-     * @allow (get/update) Authenticated user matching the document ID.
-     * @deny (list) Attempting to list all user profiles.
-     * @principle Path-based ownership and relational integrity.
      */
     match /users/{userId} {
       allow get: if isOwner(userId);
@@ -80,33 +69,28 @@ service cloud.firestore {
     /**
      * @description Marker collection for Admin roles.
      * @path /roles_admin/{adminId}
-     * @allow (get) Any staff member to verify roles.
-     * @deny (write) Any manual modification via client SDK.
-     * @principle Role-based existence check for DBAC.
+     * @allow (get) Users can check their own role, or other staff can verify.
      */
     match /roles_admin/{adminId} {
-      allow get, list: if isStaff();
-      allow create, update, delete: if false; // Role assignment typically handled via Admin SDK/Functions.
+      allow get: if isSignedIn() && (isOwner(adminId) || isStaff());
+      allow list: if isStaff();
+      allow create, update, delete: if false; 
     }
 
     /**
      * @description Marker collection for Operator roles.
      * @path /roles_operator/{operatorId}
-     * @allow (get) Any staff member to verify roles.
-     * @deny (write) Any manual modification via client SDK.
-     * @principle Role-based existence check for DBAC.
+     * @allow (get) Users can check their own role, or other staff can verify.
      */
     match /roles_operator/{operatorId} {
-      allow get, list: if isStaff();
+      allow get: if isSignedIn() && (isOwner(operatorId) || isStaff());
+      allow list: if isStaff();
       allow create, update, delete: if false;
     }
 
     /**
      * @description Central registry of children. Restricted to staff for safety.
      * @path /children/{childId}
-     * @allow (read/write) Users with Admin or Operator roles.
-     * @deny (all) Volunteers or unauthenticated users.
-     * @principle Global role authorization for sensitive PII.
      */
     match /children/{childId} {
       allow get, list: if isStaff();
@@ -116,9 +100,6 @@ service cloud.firestore {
     /**
      * @description Active and historical rescue events.
      * @path /rescueEvents/{rescueEventId}
-     * @allow (create) Volunteers or Staff. (list) Staff or Volunteers filtering by their ID.
-     * @deny (delete) Any user who is not an Admin.
-     * @principle Shared access via roles and denormalized ownership.
      */
     match /rescueEvents/{rescueEventId} {
       allow get: if isStaff() || (resource != null && isEventVolunteer(resource.data));
@@ -131,9 +112,6 @@ service cloud.firestore {
     /**
      * @description Logs of notifications sent to parents.
      * @path /rescueEvents/{rescueEventId}/notificationLogs/{notificationLogId}
-     * @allow (read/write) Admins and Operators for incident management.
-     * @deny (all) Volunteers (to prevent accidental PII leak of parent contact info).
-     * @principle Contextual nesting with independent role-based authorization.
      */
     match /rescueEvents/{rescueEventId}/notificationLogs/{notificationLogId} {
       allow get, list: if isStaff();
