@@ -84,10 +84,10 @@ export default function Home() {
             <RoleCard 
               href="/admin/register"
               icon={<UserCog className="w-6 h-6" />}
-              title="Admin Panel"
+              title="Guardian Panel"
               description="Child Registration & QR Generation."
               isRestricted={!isAdmin}
-              subtext={!isAdmin ? "Guardian Credentials Required" : "Admin Mode Active"}
+              subtext={!isAdmin ? "Guardian Credentials Required" : "Guardian Mode Active"}
             />
 
             <RoleCard 
