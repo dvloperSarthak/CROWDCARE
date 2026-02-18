@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { NavBar } from '@/components/nav-bar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
@@ -23,6 +24,61 @@ export default function ChildrenList() {
     c.childName.toLowerCase().includes(searchTerm.toLowerCase()) || 
     c.id.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
+
+  const handlePrint = (childId: string, childName: string) => {
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${childId}`;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Print Guardian ID - ${childId}</title>
+          <style>
+            body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+            .card { border: 10px solid #FF7733; padding: 40px; border-radius: 20px; text-align: center; max-width: 400px; }
+            h1 { font-size: 48px; margin: 20px 0 10px; color: #0f172a; }
+            h2 { font-size: 24px; margin: 0; color: #FF7733; }
+            img { width: 250px; height: 250px; }
+            .footer { margin-top: 20px; font-size: 12px; color: #64748b; font-weight: bold; text-transform: uppercase; letter-spacing: 2px; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <img src="${qrUrl}" alt="QR Code" />
+            <h1>${childId}</h1>
+            <h2>${childName}</h2>
+            <div class="footer">Verified Guardian ID Node</div>
+          </div>
+          <script>
+            window.onload = () => {
+              window.print();
+              window.close();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const handleExport = async (childId: string) => {
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${childId}`;
+    try {
+      const response = await fetch(qrUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `GuardianID-${childId}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export failed:', error);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -89,7 +145,6 @@ export default function ChildrenList() {
                               </DialogHeader>
                               <div className="flex flex-col items-center justify-center p-6 space-y-6">
                                 <div className="bg-white p-4 border-8 border-primary rounded-xl shadow-2xl">
-                                  {/* Using a real QR API for functional QR codes */}
                                   <Image 
                                     src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${child.id}`}
                                     alt={`QR Code for ${child.id}`}
@@ -104,10 +159,17 @@ export default function ChildrenList() {
                                   <p className="text-muted-foreground text-sm">Registered: {new Date(child.registrationDate).toLocaleDateString()}</p>
                                 </div>
                                 <div className="flex gap-4 w-full">
-                                  <Button className="flex-1 gap-2 h-12 text-lg font-bold" onClick={() => window.print()}>
+                                  <Button 
+                                    className="flex-1 gap-2 h-12 text-lg font-bold" 
+                                    onClick={() => handlePrint(child.id, child.childName)}
+                                  >
                                     <Printer className="w-4 h-4" /> Print
                                   </Button>
-                                  <Button variant="outline" className="flex-1 gap-2 h-12 text-lg font-bold">
+                                  <Button 
+                                    variant="outline" 
+                                    className="flex-1 gap-2 h-12 text-lg font-bold"
+                                    onClick={() => handleExport(child.id)}
+                                  >
                                     <Download className="w-4 h-4" /> Export
                                   </Button>
                                 </div>
