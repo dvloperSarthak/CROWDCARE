@@ -22,7 +22,7 @@ import {
   Search
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking, useAuth, initiateAnonymousSignIn } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import jsQR from 'jsqr';
 import Image from 'next/image';
@@ -40,10 +40,18 @@ export default function VolunteerApp() {
   const requestRef = useRef<number>(null);
   
   const db = useFirestore();
-  const { user } = useUser();
+  const auth = useAuth();
+  const { user, isUserLoading } = useUser();
 
-  // Real-time lookup for scanned child details
-  const childRef = useMemoFirebase(() => scannedId ? doc(db, 'children', scannedId) : null, [db, scannedId]);
+  // Ensure field protocol has at least guest credentials
+  useEffect(() => {
+    if (!isUserLoading && !user && auth) {
+      initiateAnonymousSignIn(auth);
+    }
+  }, [user, isUserLoading, auth]);
+
+  // Real-time lookup for scanned child details - Gated by user existence
+  const childRef = useMemoFirebase(() => (scannedId && user) ? doc(db, 'children', scannedId) : null, [db, scannedId, user]);
   const { data: childData, isLoading: isLoadingChild } = useDoc(childRef);
 
   const startCamera = async () => {

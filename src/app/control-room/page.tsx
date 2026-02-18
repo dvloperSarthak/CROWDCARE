@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -9,19 +10,20 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { AlertCircle, Map, Bell, Check, User, Phone, ShieldAlert, Clock, Loader2, Sparkles, UserCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { detectDuplicateRescueAlert } from '@/ai/flows/duplicate-rescue-detection-flow';
-import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useUser } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import Image from 'next/image';
 
 export default function ControlRoom() {
   const { toast } = useToast();
   const db = useFirestore();
+  const { user } = useUser();
   
-  // Real-time feeds from Firestore
-  const alertsRef = useMemoFirebase(() => collection(db, 'rescueEvents'), [db]);
+  // Real-time feeds from Firestore - Gated by authentication state
+  const alertsRef = useMemoFirebase(() => user ? collection(db, 'rescueEvents') : null, [db, user]);
   const { data: alerts, isLoading: loadingAlerts } = useCollection(alertsRef);
   
-  const childrenRef = useMemoFirebase(() => collection(db, 'children'), [db]);
+  const childrenRef = useMemoFirebase(() => user ? collection(db, 'children') : null, [db, user]);
   const { data: children } = useCollection(childrenRef);
 
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
@@ -173,7 +175,7 @@ export default function ControlRoom() {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              {loadingAlerts ? (
+              {loadingAlerts || !user ? (
                 <div className="flex flex-col items-center justify-center py-24 gap-4">
                   <Loader2 className="w-12 h-12 animate-spin text-primary" />
                   <p className="text-muted-foreground font-bold tracking-widest uppercase text-xs">Decrypting field signals...</p>

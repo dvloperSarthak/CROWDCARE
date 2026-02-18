@@ -9,15 +9,17 @@ import { Button } from '@/components/ui/button';
 import { QrCode, Printer, Search, Download, Loader2, UserCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import Image from 'next/image';
 
 export default function ChildrenList() {
   const [searchTerm, setSearchTerm] = useState('');
   const db = useFirestore();
+  const { user } = useUser();
 
-  const childrenRef = useMemoFirebase(() => collection(db, 'children'), [db]);
+  // Gated collection reference to prevent unauthenticated read attempts
+  const childrenRef = useMemoFirebase(() => user ? collection(db, 'children') : null, [db, user]);
   const { data: children, isLoading } = useCollection(childrenRef);
 
   const filtered = children?.filter(c => 
@@ -103,7 +105,7 @@ export default function ChildrenList() {
 
         <Card className="shadow-md border-2">
           <CardContent className="p-0">
-            {isLoading ? (
+            {isLoading || !user ? (
               <div className="flex flex-col items-center justify-center py-20 gap-2">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
                 <p className="text-muted-foreground">Syncing Central Registry...</p>
