@@ -8,11 +8,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { QrCode, Printer, Search, Download, Loader2, UserCircle, MapPin, Navigation, Map as MapIcon, Eye } from 'lucide-react';
+import { Printer, Search, Download, Loader2, UserCircle, Map as MapIcon, Eye, Navigation } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { collection, query, where } from 'firebase/firestore';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
 
@@ -28,7 +28,12 @@ export default function ChildrenList() {
   const db = useFirestore();
   const { user } = useUser();
 
-  const childrenRef = useMemoFirebase(() => user ? collection(db, 'children') : null, [db, user]);
+  // Filter children to only show those registered by the current user
+  const childrenRef = useMemoFirebase(() => {
+    if (!user || !db) return null;
+    return query(collection(db, 'children'), where('registeredById', '==', user.uid));
+  }, [db, user]);
+  
   const { data: children, isLoading } = useCollection(childrenRef);
 
   const eventsRef = useMemoFirebase(() => user ? collection(db, 'rescueEvents') : null, [db, user]);
@@ -102,12 +107,12 @@ export default function ChildrenList() {
 
   return (
     <div className="min-h-screen bg-background">
-      <NavBar title="Guardian ID Registry" backHref="/" />
+      <NavBar title="My Registered IDs" backHref="/" />
       <main className="container py-8 px-6 mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div className="relative w-full md:w-96">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-            <Input placeholder="Search Registry..." className="pl-10 h-11" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <Input placeholder="Search your registrations..." className="pl-10 h-11" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
           <Button className="w-full md:w-auto font-black uppercase tracking-widest shadow-lg" asChild>
             <a href="/admin/register">New Registration</a>
@@ -119,7 +124,7 @@ export default function ChildrenList() {
             {isLoading || !user ? (
               <div className="flex flex-col items-center justify-center py-24 gap-2">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                <p className="text-muted-foreground font-black uppercase text-[10px] tracking-widest">Syncing Central Registry...</p>
+                <p className="text-muted-foreground font-black uppercase text-[10px] tracking-widest">Syncing Personal Registry...</p>
               </div>
             ) : (
               <Table>
@@ -128,13 +133,13 @@ export default function ChildrenList() {
                     <TableHead className="w-16">Photo</TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-widest">ID</TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-widest">Name</TableHead>
-                    <TableHead className="font-black text-[10px] uppercase tracking-widest">Field Telemetry</TableHead>
+                    <TableHead className="font-black text-[10px] uppercase tracking-widest">Live Telemetry</TableHead>
                     <TableHead className="text-right font-black text-[10px] uppercase tracking-widest">Ops</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} className="text-center py-20 text-muted-foreground">Registry empty or no matches.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-20 text-muted-foreground">You haven't registered any children yet.</TableCell></TableRow>
                   ) : (
                     filtered.map((child) => {
                       const latestEvent = events
@@ -163,7 +168,7 @@ export default function ChildrenList() {
                                 <Dialog>
                                   <DialogTrigger asChild>
                                     <Button variant="link" size="sm" className="h-auto p-0 text-[9px] font-black uppercase text-primary items-center justify-start gap-1">
-                                      <MapIcon className="w-2.5 h-2.5" /> View Inbuilt Map
+                                      <MapIcon className="w-2.5 h-2.5" /> View In-App Map
                                     </Button>
                                   </DialogTrigger>
                                   <DialogContent className="sm:max-w-2xl">
