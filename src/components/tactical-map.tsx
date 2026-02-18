@@ -4,7 +4,7 @@
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 // Fix for default marker icons in Leaflet with Next.js
 const icon = L.icon({
@@ -31,9 +31,23 @@ interface TacticalMapProps {
 
 function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
+  const lastCenterRef = useRef<[number, number] | null>(null);
+
   useEffect(() => {
-    map.setView(center, zoom);
+    // Only center the map if the coordinates are non-zero and have actually changed significantly
+    // to prevent jitter during live updates
+    if (center[0] !== 0 && center[1] !== 0) {
+      const isNew = !lastCenterRef.current || 
+                    Math.abs(lastCenterRef.current[0] - center[0]) > 0.0001 || 
+                    Math.abs(lastCenterRef.current[1] - center[1]) > 0.0001;
+      
+      if (isNew) {
+        map.setView(center, zoom);
+        lastCenterRef.current = center;
+      }
+    }
   }, [center, zoom, map]);
+  
   return null;
 }
 
@@ -43,7 +57,7 @@ export default function TacticalMap({ alerts, center = [0, 0], zoom = 2, onMarke
   const mapZoom = center[0] !== 0 ? 18 : zoom;
 
   return (
-    <div className="w-full h-full min-h-[400px] relative rounded-xl overflow-hidden border-4 border-slate-900 shadow-2xl">
+    <div className="w-full h-full min-h-[400px] relative rounded-xl overflow-hidden border-4 border-slate-900 shadow-2xl bg-slate-100">
       <MapContainer center={mapCenter} zoom={mapZoom} scrollWheelZoom={true} style={{ height: "100%", width: "100%" }}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -61,9 +75,12 @@ export default function TacticalMap({ alerts, center = [0, 0], zoom = 2, onMarke
           >
             <Popup className="font-bold">
               <div className="text-center p-2">
-                <p className="text-primary font-black uppercase text-[10px] tracking-widest">Active Incident</p>
-                <p className="text-lg font-black">{alert.childId}</p>
-                <p className="text-[9px] uppercase font-bold text-slate-500">{alert.status}</p>
+                <p className="text-primary font-black uppercase text-[10px] tracking-widest leading-none mb-1">Active SITREP</p>
+                <p className="text-lg font-black tracking-tight">{alert.childId}</p>
+                <div className="flex flex-col gap-0.5 mt-1 border-t pt-1">
+                  <p className="text-[9px] uppercase font-bold text-slate-500">{alert.status}</p>
+                  <p className="font-mono text-[8px] text-slate-400 font-bold">{alert.locationLatitude.toFixed(6)}, {alert.locationLongitude.toFixed(6)}</p>
+                </div>
               </div>
             </Popup>
           </Marker>

@@ -20,8 +20,9 @@ import {
   LocateFixed,
   Radio,
   Upload,
-  FileSearch,
-  Map as MapIcon
+  Map as MapIcon,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking, updateDocumentNonBlocking, useAuth, initiateAnonymousSignIn } from '@/firebase';
@@ -45,6 +46,7 @@ export default function VolunteerApp() {
   const [currentCoords, setCurrentCoords] = useState<{lat: number, lng: number} | null>(null);
   const [gpsAccuracy, setGpsAccuracy] = useState<'low' | 'medium' | 'high' | 'none'>('none');
   const [activeAlertId, setActiveAlertId] = useState<string | null>(null);
+  const [isBroadcasting, setIsBroadcasting] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -62,7 +64,7 @@ export default function VolunteerApp() {
     }
   }, [user, isUserLoading, auth]);
 
-  // High-Precision Real-time GPS Tracking
+  // High-Precision Real-time GPS Tracking & Continuous Broadcast
   useEffect(() => {
     if (!navigator.geolocation) {
       setGpsAccuracy('none');
@@ -73,12 +75,15 @@ export default function VolunteerApp() {
       (pos) => {
         const newCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setCurrentCoords(newCoords);
+        
+        // Signal Quality Logic
         if (pos.coords.accuracy < 15) setGpsAccuracy('high');
         else if (pos.coords.accuracy < 50) setGpsAccuracy('medium');
         else setGpsAccuracy('low');
 
-        // IF A RESCUE IS ACTIVE, UPDATE THE CLOUD RECORD IN REAL-TIME
+        // PERSISTENT LIVE BROADCAST: If a rescue is active, keep updating the cloud record
         if (activeAlertId && db) {
+          setIsBroadcasting(true);
           const alertRef = doc(db, 'rescueEvents', activeAlertId);
           updateDocumentNonBlocking(alertRef, {
             locationLatitude: pos.coords.latitude,
@@ -89,17 +94,22 @@ export default function VolunteerApp() {
       },
       (err) => {
         setGpsAccuracy('none');
+        setIsBroadcasting(false);
         const message = err.code === 1 
-          ? "GPS Permission Denied. Please enable location in browser settings." 
-          : "Satellite signal weak. Try moving to an open area.";
+          ? "GPS Permission Denied. Protocol halted." 
+          : "Satellite signal lost. Searching...";
         
         toast({
           variant: "destructive",
-          title: "Positioning Offline",
+          title: "Signal Lost",
           description: message,
         });
       },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
+      { 
+        enableHighAccuracy: true, 
+        maximumAge: 0, 
+        timeout: 10000 // Faster timeout for more aggressive reconnection
+      }
     );
     return () => navigator.geolocation.clearWatch(watchId);
   }, [activeAlertId, db, toast]);
@@ -123,7 +133,7 @@ export default function VolunteerApp() {
       }
     } catch (error) {
       setIsScanning(false);
-      toast({ variant: 'destructive', title: 'Camera Error', description: 'Enable permissions for Guardian scanning.' });
+      toast({ variant: 'destructive', title: 'Camera Offline', description: 'Guardian scanner requires camera access.' });
     }
   };
 
@@ -142,7 +152,7 @@ export default function VolunteerApp() {
           if (code) {
             setScannedId(code.data);
             stopCamera();
-            toast({ title: "QR Identified", description: `Guardian ID ${code.data} detected.` });
+            toast({ title: "ID IDENTIFIED", description: `Guardian ID ${code.data} confirmed.` });
             return;
           }
         }
@@ -179,12 +189,12 @@ export default function VolunteerApp() {
           if (code) {
             setScannedId(code.data);
             stopCamera();
-            toast({ title: "QR Decoded", description: `ID ${code.data} identified from file.` });
+            toast({ title: "ID DECODED", description: `Guardian ID ${code.data} verified from source.` });
           } else {
             toast({ 
               variant: 'destructive', 
-              title: "Scan Failed", 
-              description: "No valid Guardian QR code found in this image. Ensure the code is clear and well-lit." 
+              title: "Scan Failure", 
+              description: "No Guardian QR detected. Ensure image is clear." 
             });
           }
         }
@@ -218,7 +228,7 @@ export default function VolunteerApp() {
       setActiveAlertId(alertId);
       setIsDispatching(false);
       setIsSent(true);
-      toast({ title: "SITREP BROADCASTED", description: "Real-time location stream is live." });
+      toast({ title: "SITREP LIVE", description: "Broadcasting high-precision location stream." });
     }, 1200);
   };
 
@@ -229,12 +239,14 @@ export default function VolunteerApp() {
       <main className="container max-w-md mx-auto py-6 px-4 space-y-6">
         <div className="flex items-center justify-between bg-slate-900 text-white p-3 rounded-xl border-2 border-primary/20 shadow-xl">
           <div className="flex items-center gap-2">
-            <Radio className="w-5 h-5 text-primary animate-pulse" />
-            <span className="font-black text-[10px] uppercase tracking-widest">Tactical Network Active</span>
+            <Radio className={cn("w-5 h-5", isBroadcasting ? "text-primary animate-pulse" : "text-slate-500")} />
+            <span className="font-black text-[10px] uppercase tracking-widest">
+              {isBroadcasting ? "Continuous Broadcast Live" : "Tactical Network Ready"}
+            </span>
           </div>
           <div className="flex items-center gap-1.5 bg-black/40 px-2 py-1 rounded-md">
              <LocateFixed className={cn("w-3 h-3", gpsAccuracy === 'high' ? "text-teal-400" : "text-yellow-400")} />
-             <span className="text-[9px] font-black uppercase">GPS: {gpsAccuracy}</span>
+             <span className="text-[9px] font-black uppercase">Signal: {gpsAccuracy}</span>
           </div>
         </div>
 
@@ -258,18 +270,18 @@ export default function VolunteerApp() {
                   </div>
                   <div className="flex flex-col gap-3">
                     <Button onClick={startCamera} className="w-full h-16 text-lg font-black uppercase tracking-widest shadow-2xl bg-primary hover:bg-primary/90 rounded-2xl">
-                      Launch Scanner
+                      Start Scanner
                     </Button>
                     <div className="relative">
                       <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-white/20" /></div>
-                      <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-black px-2 text-white/40">OR</span></div>
+                      <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-black px-2 text-white/40">Manual Link</span></div>
                     </div>
                     <Button 
                       variant="outline" 
                       onClick={() => fileInputRef.current?.click()}
                       className="w-full h-12 text-xs font-black uppercase tracking-widest bg-white/5 border-white/20 text-white hover:bg-white/10 rounded-xl gap-2"
                     >
-                      <Upload className="w-4 h-4" /> Scan from File
+                      <ImagePlus className="w-4 h-4" /> Upload Guardian ID
                     </Button>
                     <input 
                       type="file" 
@@ -286,14 +298,14 @@ export default function VolunteerApp() {
             {scannedId && (
               <div className="animate-entrance space-y-4">
                 <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-2xl space-y-4 border-b-8 border-primary relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-2"><Badge className="bg-primary font-black">{scannedId}</Badge></div>
+                  <div className="absolute top-0 right-0 p-2"><Badge className="bg-primary font-black uppercase tracking-widest">{scannedId}</Badge></div>
                   <div className="flex gap-4 items-center">
                     <div className="w-20 h-20 rounded-2xl border-2 border-primary bg-slate-800 relative overflow-hidden flex-shrink-0">
                       {isLoadingChild ? <div className="w-full h-full flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div> : childData?.photoUrl ? <Image src={childData.photoUrl} alt="Target" fill className="object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle className="w-10 h-10 text-slate-600" /></div>}
                     </div>
                     <div className="flex-1 space-y-1">
-                      <p className="text-[10px] font-black text-primary uppercase tracking-widest">Target Identity</p>
-                      <h3 className="text-2xl font-black uppercase tracking-tight truncate leading-tight">{isLoadingChild ? 'Searching...' : (childData?.childName || 'ID Unrecognized')}</h3>
+                      <p className="text-[10px] font-black text-primary uppercase tracking-widest">Protocol Identified</p>
+                      <h3 className="text-2xl font-black uppercase tracking-tight truncate leading-tight">{isLoadingChild ? 'Checking Registry...' : (childData?.childName || 'Unrecognized Subject')}</h3>
                     </div>
                   </div>
 
@@ -301,36 +313,24 @@ export default function VolunteerApp() {
                     <div className="space-y-3">
                       <div className="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
                         <div className="space-y-1">
-                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3 text-primary animate-pulse" /> Precision Locked</p>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3 text-primary animate-pulse" /> Coordinates Locked</p>
                           <p className="font-mono text-[10px] font-bold text-slate-100">{currentCoords.lat.toFixed(6)}, {currentCoords.lng.toFixed(6)}</p>
                         </div>
-                        <Button size="sm" variant="link" className="h-auto p-0 text-[9px] font-black uppercase text-primary" asChild>
-                           <a href={`https://www.google.com/maps?q=${currentCoords.lat},${currentCoords.lng}`} target="_blank" rel="noopener noreferrer">Satellite View <ExternalLink className="w-2.5 h-2.5 ml-1" /></a>
-                        </Button>
                       </div>
 
-                      {/* Inbuilt Map Embed Preview */}
                       <div className="w-full h-32 rounded-xl overflow-hidden border-2 border-primary/20 relative shadow-inner">
                         <TacticalMap 
                           alerts={[]} 
                           center={[currentCoords.lat, currentCoords.lng]} 
                           zoom={17} 
                         />
-                        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                           <div className="w-6 h-6 bg-primary/40 rounded-full animate-ping flex items-center justify-center">
-                              <div className="w-3 h-3 bg-primary rounded-full border-2 border-white shadow-lg" />
-                           </div>
-                        </div>
-                        <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[8px] font-black uppercase text-white flex items-center gap-1">
-                          <MapIcon className="w-2 h-2 text-primary" /> Signal Origin
-                        </div>
                       </div>
                     </div>
                   )}
                 </div>
 
-                <Button onClick={handleRescue} disabled={isDispatching || !currentCoords} className="w-full h-24 text-2xl font-black uppercase tracking-widest shadow-2xl bg-primary hover:bg-primary/90 animate-pulse active:animate-none rounded-3xl border-b-8 border-orange-800">
-                  {isDispatching ? <Loader2 className="animate-spin w-8 h-8" /> : <><AlertTriangle className="mr-3 w-8 h-8" /> Initiate Rescue</>}
+                <Button onClick={handleRescue} disabled={isDispatching || !currentCoords} className="w-full h-24 text-2xl font-black uppercase tracking-widest shadow-2xl bg-primary hover:bg-primary/90 rounded-3xl border-b-8 border-orange-800">
+                  {isDispatching ? <Loader2 className="animate-spin w-8 h-8" /> : <><AlertTriangle className="mr-3 w-8 h-8" /> Initiate Broadcast</>}
                 </Button>
               </div>
             )}
@@ -340,9 +340,9 @@ export default function VolunteerApp() {
             <Card className="border-8 border-teal-500 bg-white p-8 text-center space-y-8 shadow-2xl animate-success-pop rounded-[3rem]">
               <div className="w-24 h-24 bg-teal-100 rounded-full flex items-center justify-center mx-auto shadow-inner"><CheckCircle2 className="w-16 h-16 text-teal-600" /></div>
               <div className="space-y-3">
-                <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter">Mission Live</h2>
+                <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">Broadcasting</h2>
                 <div className="bg-slate-900 text-teal-400 p-4 rounded-2xl border-2 border-teal-900/20 text-[10px] font-black uppercase tracking-widest leading-relaxed">
-                  Broadcasting real-time GPS coordinates.<br/>Guardian Control is tracking your position.<br/>Remain at current coordinates.
+                  Live satellite telemetry active.<br/>Control Room is tracking your movement.<br/>Maintain position until contacted.
                 </div>
               </div>
 
@@ -362,10 +362,10 @@ export default function VolunteerApp() {
               )}
 
               <div className="flex flex-col gap-3">
-                <Button size="lg" className="w-full h-16 bg-teal-600 font-black uppercase text-xs" asChild>
-                  <a href={`https://www.google.com/maps?q=${currentCoords.lat},${currentCoords.lng}`} target="_blank" rel="noopener noreferrer">Open Satellite Feed</a>
-                </Button>
-                <Button onClick={() => { setScannedId(''); setIsSent(false); setActiveAlertId(null); }} variant="outline" className="w-full h-12 border-2 border-slate-900 font-black uppercase text-[10px]">Reset Terminal</Button>
+                <div className="flex items-center justify-center gap-2 text-[10px] font-black uppercase text-teal-600">
+                  <Wifi className="w-4 h-4 animate-pulse" /> Continuous Data Stream Active
+                </div>
+                <Button onClick={() => { setScannedId(''); setIsSent(false); setActiveAlertId(null); setIsBroadcasting(false); }} variant="outline" className="w-full h-12 border-2 border-slate-900 font-black uppercase text-[10px]">Close Mission Terminal</Button>
               </div>
             </Card>
           </div>
