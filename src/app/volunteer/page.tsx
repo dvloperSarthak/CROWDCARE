@@ -164,13 +164,29 @@ export default function VolunteerApp() {
 
     setIsDispatching(true);
 
+    // Get real geolocation
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        broadcastRescue(latitude, longitude);
+      },
+      (error) => {
+        console.warn("Geolocation denied or failed, using simulation fallback", error);
+        // Fallback to stadium coordinates if GPS is unavailable
+        broadcastRescue(28.6139, 77.2090);
+      },
+      { enableHighAccuracy: true, timeout: 5000 }
+    );
+  };
+
+  const broadcastRescue = (lat: number, lng: number) => {
     const alertId = `A-${Date.now()}`;
     const newAlert = {
       id: alertId,
       childId: scannedId,
-      volunteerId: user.uid,
-      locationLatitude: 28.6139, 
-      locationLongitude: 77.2090,
+      volunteerId: user!.uid,
+      locationLatitude: lat, 
+      locationLongitude: lng,
       scanTime: new Date().toISOString(),
       status: 'Scanned',
       statusUpdateTime: new Date().toISOString(),
@@ -185,10 +201,10 @@ export default function VolunteerApp() {
       setIsSent(true);
       toast({
         title: "Alert Broadcasted",
-        description: "Control Room has received the sitrep.",
+        description: "Control Room has received the sitrep with location.",
       });
     }, 1500);
-  };
+  }
 
   useEffect(() => {
     return () => stopCamera();
