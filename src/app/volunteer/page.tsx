@@ -4,21 +4,33 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavBar } from '@/components/nav-bar';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Camera, Send, MapPin, Signal, WifiOff, AlertTriangle, CheckCircle2, Loader2, Sparkles, XCircle, ImagePlus } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Camera, 
+  MapPin, 
+  Signal, 
+  AlertTriangle, 
+  CheckCircle2, 
+  Loader2, 
+  Sparkles, 
+  XCircle, 
+  ImagePlus, 
+  UserCircle,
+  ShieldCheck,
+  Search
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useUser, setDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import jsQR from 'jsqr';
+import Image from 'next/image';
 
 export default function VolunteerApp() {
   const { toast } = useToast();
   const [isScanning, setIsScanning] = useState(false);
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [scannedId, setScannedId] = useState('');
-  const [networkMode, setNetworkMode] = useState<'Online' | 'Offline (LoRa)'>('Online');
   const [isSent, setIsSent] = useState(false);
   const [isDispatching, setIsDispatching] = useState(false);
   
@@ -30,13 +42,17 @@ export default function VolunteerApp() {
   const db = useFirestore();
   const { user } = useUser();
 
+  // Real-time lookup for scanned child details
+  const childRef = useMemoFirebase(() => scannedId ? doc(db, 'children', scannedId) : null, [db, scannedId]);
+  const { data: childData, isLoading: isLoadingChild } = useDoc(childRef);
+
   const startCamera = async () => {
     setIsScanning(true);
+    setScannedId('');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } 
       });
-      setHasCameraPermission(true);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.setAttribute("playsinline", "true");
@@ -45,7 +61,6 @@ export default function VolunteerApp() {
       }
     } catch (error) {
       console.error('Error accessing camera:', error);
-      setHasCameraPermission(false);
       setIsScanning(false);
       toast({
         variant: 'destructive',
@@ -74,8 +89,8 @@ export default function VolunteerApp() {
             setScannedId(code.data);
             stopCamera();
             toast({
-              title: "ID Captured",
-              description: `Guardian ID ${code.data} verified.`,
+              title: "Guardian ID Captured",
+              description: `Target ${code.data} identified.`,
             });
             return;
           }
@@ -102,7 +117,7 @@ export default function VolunteerApp() {
     if (file) {
       const reader = new FileReader();
       reader.onload = (event) => {
-        const img = new Image();
+        const img = new window.Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
           const context = canvas.getContext('2d');
@@ -135,7 +150,7 @@ export default function VolunteerApp() {
 
   const handleRescue = () => {
     if (!scannedId || !user) {
-      if (!user) toast({ title: "Auth Required", description: "You must be signed in.", variant: "destructive" });
+      if (!user) toast({ title: "Auth Required", description: "Protocol requires node sign-in.", variant: "destructive" });
       return;
     }
 
@@ -146,7 +161,7 @@ export default function VolunteerApp() {
       id: alertId,
       childId: scannedId,
       volunteerId: user.uid,
-      locationLatitude: 28.6139, // Static simulation for prototype
+      locationLatitude: 28.6139, 
       locationLongitude: 77.2090,
       scanTime: new Date().toISOString(),
       status: 'Scanned',
@@ -161,8 +176,8 @@ export default function VolunteerApp() {
       setIsDispatching(false);
       setIsSent(true);
       toast({
-        title: "Rescue Alert Sent",
-        description: "Alert transmitted to central control hub.",
+        title: "Alert Broadcasted",
+        description: "Control Room has received the sitrep.",
       });
     }, 1500);
   };
@@ -179,14 +194,14 @@ export default function VolunteerApp() {
         <div className="flex items-center justify-between bg-white p-3 rounded-lg border shadow-sm">
           <div className="flex items-center gap-2">
             <Signal className="w-5 h-5 text-green-500 animate-pulse" />
-            <span className="font-bold text-sm">Real-time Protocol</span>
+            <span className="font-bold text-xs uppercase tracking-widest text-slate-600">Field Protocol Active</span>
           </div>
-          <Badge variant="secondary" className="text-[10px] font-black uppercase">v2.5 Live</Badge>
+          <Badge variant="secondary" className="text-[10px] font-black uppercase">Guardian v2.5</Badge>
         </div>
 
         {!isSent ? (
           <>
-            <Card className="border-4 border-primary bg-black aspect-square flex flex-col items-center justify-center relative overflow-hidden shadow-2xl rounded-2xl">
+            <Card className="border-4 border-slate-900 bg-black aspect-square flex flex-col items-center justify-center relative overflow-hidden shadow-2xl rounded-3xl group">
               <video 
                 ref={videoRef} 
                 className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${isScanning ? 'opacity-100' : 'opacity-0'}`} 
@@ -198,30 +213,30 @@ export default function VolunteerApp() {
               
               {isScanning && (
                 <div className="absolute inset-0 pointer-events-none z-10">
-                  <div className="w-full h-1 bg-primary shadow-[0_0_15px_rgba(255,119,51,1)] animate-scan-line absolute" />
+                  <div className="w-full h-1 bg-primary shadow-[0_0_20px_rgba(255,119,51,1)] animate-scan-line absolute" />
                   <div className="absolute inset-0 border-[40px] border-black/40" />
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border-2 border-primary/50 rounded-lg" />
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-56 h-56 border-2 border-primary/40 rounded-2xl" />
                 </div>
               )}
 
               {!isScanning && (
                 <div className="text-center space-y-6 z-20 px-6">
-                  <div className="bg-white/10 p-6 rounded-full inline-block backdrop-blur-md border border-white/20">
+                  <div className="bg-white/10 p-6 rounded-full inline-block backdrop-blur-xl border border-white/20 shadow-2xl">
                     <Camera className="w-12 h-12 text-white" />
                   </div>
                   <div className="space-y-4">
-                    <Button onClick={startCamera} className="w-full h-14 text-lg font-black uppercase tracking-widest shadow-lg bg-primary hover:bg-primary/90">
-                      Live Camera
+                    <Button onClick={startCamera} className="w-full h-16 text-lg font-black uppercase tracking-widest shadow-xl bg-primary hover:bg-primary/90 transition-transform active:scale-95">
+                      Launch Scanner
                     </Button>
                     <div className="flex items-center gap-3">
                       <hr className="flex-1 border-white/20" />
-                      <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">or</span>
+                      <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">or</span>
                       <hr className="flex-1 border-white/20" />
                     </div>
                     <Button 
-                      variant="outline" 
+                      variant="ghost" 
                       onClick={() => fileInputRef.current?.click()}
-                      className="w-full h-12 border-2 border-white/20 text-white hover:bg-white/10 font-bold uppercase"
+                      className="w-full h-12 text-white hover:bg-white/10 font-black uppercase tracking-widest text-[10px]"
                     >
                       <ImagePlus className="mr-2 w-4 h-4" /> Scan from File
                     </Button>
@@ -238,64 +253,92 @@ export default function VolunteerApp() {
             </Card>
 
             <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1 flex items-center gap-2">
-                  <Sparkles className="w-3 h-3 text-primary" /> Active Guardian ID
-                </label>
-                <div className="relative">
-                   <Input 
-                    className="h-16 text-3xl font-black text-center border-2 border-primary bg-white shadow-sm uppercase tracking-tighter" 
-                    placeholder="WAITING FOR SCAN..." 
-                    value={scannedId}
-                    readOnly
-                  />
-                  {scannedId && (
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
-                      onClick={() => setScannedId('')}
-                    >
-                      <XCircle className="w-5 h-5" />
-                    </Button>
-                  )}
-                </div>
-              </div>
+              {scannedId && (
+                <div className="animate-entrance space-y-4">
+                  <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-2xl space-y-4 border-b-4 border-primary">
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-16 rounded-xl border-2 border-primary bg-slate-800 relative overflow-hidden flex-shrink-0 shadow-lg">
+                        {isLoadingChild ? (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                          </div>
+                        ) : childData?.photoUrl ? (
+                          <Image src={childData.photoUrl} alt={childData.childName} fill className="object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <UserCircle className="w-10 h-10 text-slate-600" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-black text-primary uppercase tracking-widest">Protocol Verified</p>
+                          <Badge className="bg-primary/20 text-primary border-primary/20 h-5 text-[9px] font-black">{scannedId}</Badge>
+                        </div>
+                        <h3 className="text-xl font-black uppercase tracking-tight truncate">
+                          {isLoadingChild ? 'Checking Registry...' : (childData?.childName || 'Identity Unknown')}
+                        </h3>
+                        {!isLoadingChild && !childData && (
+                          <p className="text-[9px] font-bold text-red-400 uppercase tracking-widest flex items-center gap-1">
+                            <XCircle className="w-3 h-3" /> Unregistered ID in Grid
+                          </p>
+                        )}
+                        {childData && (
+                          <p className="text-[9px] font-bold text-teal-400 uppercase tracking-widest flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3" /> Secure Node Match
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
-              <Button 
-                onClick={handleRescue}
-                disabled={!scannedId || isScanning || isDispatching} 
-                className={`w-full h-20 text-2xl font-black uppercase tracking-widest shadow-xl transition-all ${!scannedId ? 'bg-slate-200 text-slate-400' : 'bg-primary hover:bg-primary/90 animate-pulse'}`}
-              >
-                {isDispatching ? (
-                  <>
-                    <Loader2 className="mr-2 w-8 h-8 animate-spin" />
-                    Transmitting...
-                  </>
-                ) : (
-                  <>
-                    <AlertTriangle className="mr-3 w-8 h-8" />
-                    Initiate Rescue
-                  </>
-                )}
-              </Button>
+                  <Button 
+                    onClick={handleRescue}
+                    disabled={isDispatching} 
+                    className="w-full h-20 text-2xl font-black uppercase tracking-widest shadow-2xl bg-primary hover:bg-primary/90 animate-pulse active:animate-none group"
+                  >
+                    {isDispatching ? (
+                      <>
+                        <Loader2 className="mr-3 w-8 h-8 animate-spin" />
+                        Broadcasting...
+                      </>
+                    ) : (
+                      <>
+                        <AlertTriangle className="mr-3 w-8 h-8 group-hover:scale-110 transition-transform" />
+                        Initiate Rescue
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+
+              {!scannedId && (
+                <div className="text-center py-6">
+                  <p className="text-muted-foreground text-[10px] font-black uppercase tracking-[0.3em]">Standby for Field ID</p>
+                </div>
+              )}
             </div>
           </>
         ) : (
           <div className="space-y-6 py-8">
-            <Card className="border-4 border-teal-500 bg-white p-8 text-center space-y-8 shadow-2xl animate-success-pop">
-              <CheckCircle2 className="w-24 h-24 text-teal-500 mx-auto" />
+            <Card className="border-4 border-teal-500 bg-white p-8 text-center space-y-8 shadow-2xl animate-success-pop rounded-3xl">
+              <div className="relative inline-block">
+                <div className="absolute inset-0 bg-teal-500 rounded-full animate-ping opacity-20" />
+                <CheckCircle2 className="w-24 h-24 text-teal-500 relative z-10" />
+              </div>
               <div className="space-y-3">
-                <h2 className="text-4xl font-black text-teal-950 uppercase italic tracking-tighter">Alert Sent</h2>
-                <p className="text-teal-700 font-bold text-lg leading-tight">
-                  ID <span className="text-teal-950 border-b-2 border-teal-950">{scannedId}</span> broadcasted.
-                </p>
-                <div className="bg-teal-50 p-4 rounded-lg border border-teal-100 text-xs text-teal-800 font-black uppercase tracking-widest">
-                  Stay with child. Ops dispatching.
+                <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter">Mission Live</h2>
+                <div className="space-y-1">
+                  <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Protocol ID</p>
+                  <p className="text-2xl font-black text-primary italic tracking-tight">{scannedId}</p>
+                </div>
+                <div className="bg-teal-50 p-4 rounded-xl border border-teal-100 text-xs text-teal-800 font-bold leading-tight">
+                  SITREP transmitted. Control Room has initiated emergency response. 
+                  <span className="block mt-2 font-black uppercase tracking-widest text-[10px]">Remain with child</span>
                 </div>
               </div>
-              <Button onClick={() => { setScannedId(''); setIsSent(false); }} variant="outline" className="w-full h-12 border-2 border-teal-500 text-teal-900 font-bold hover:bg-teal-50">
-                Next Session
+              <Button onClick={() => { setScannedId(''); setIsSent(false); }} variant="outline" className="w-full h-14 border-2 border-slate-900 text-slate-900 font-black uppercase tracking-widest hover:bg-slate-50">
+                Reset Terminal
               </Button>
             </Card>
           </div>
@@ -303,8 +346,4 @@ export default function VolunteerApp() {
       </main>
     </div>
   );
-}
-
-function Badge({ children, variant, className }: { children: React.ReactNode, variant?: string, className?: string }) {
-  return <div className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors ${className}`}>{children}</div>;
 }
