@@ -91,7 +91,7 @@ export default function ChildrenList() {
   };
 
   const handlePrint = (childId: string, childName: string, photo?: string) => {
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${childId}`;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${childId}`;
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
@@ -100,22 +100,133 @@ export default function ChildrenList() {
         <head>
           <title>Print Guardian ID - ${childId}</title>
           <style>
-            body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f8fafc; }
-            .card { border: 8px solid #FF7733; padding: 40px; border-radius: 24px; text-align: center; max-width: 400px; background: white; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); }
-            .photo { width: 120px; height: 120px; border-radius: 60px; object-fit: cover; border: 4px solid #FF7733; margin-bottom: 20px; }
-            h1 { font-size: 48px; margin: 10px 0; color: #0f172a; font-weight: 900; }
-            h2 { font-size: 24px; margin: 0; color: #FF7733; font-weight: 700; }
-            .qr { width: 180px; height: 180px; margin-top: 20px; }
-            .footer { margin-top: 30px; font-size: 10px; color: #64748b; font-weight: 900; text-transform: uppercase; letter-spacing: 3px; }
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+            body { 
+              font-family: 'Inter', sans-serif; 
+              display: flex; 
+              flex-direction: column; 
+              align-items: center; 
+              justify-content: center; 
+              min-height: 100vh; 
+              margin: 0; 
+              background: #f1f5f9; 
+            }
+            .card { 
+              width: 320px; 
+              height: 500px; 
+              background: white; 
+              border-radius: 20px; 
+              box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); 
+              overflow: hidden; 
+              display: flex; 
+              flex-direction: column; 
+              position: relative;
+              border: 1px solid #e2e8f0;
+            }
+            .lanyard-slot {
+              display: flex;
+              justify-content: center;
+              gap: 40px;
+              padding: 15px 0;
+              background: #f8fafc;
+            }
+            .slot {
+              width: 30px;
+              height: 6px;
+              background: #cbd5e1;
+              border-radius: 10px;
+            }
+            .photo-area { 
+              flex: 1; 
+              background: #0f172a; 
+              position: relative; 
+              display: flex; 
+              align-items: center; 
+              justify-content: center;
+              overflow: hidden;
+            }
+            .background-image {
+              position: absolute;
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+              opacity: 0.8;
+            }
+            .qr-overlay {
+              position: relative;
+              z-index: 10;
+              background: white;
+              padding: 12px;
+              border-radius: 12px;
+              box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+              width: 180px;
+              height: 180px;
+            }
+            .qr-overlay img {
+              width: 100%;
+              height: 100%;
+            }
+            .info-area { 
+              height: 100px; 
+              background: white; 
+              display: flex; 
+              flex-direction: column; 
+              align-items: center; 
+              justify-content: center; 
+              padding: 10px;
+              border-top: 4px solid #FF7733;
+            }
+            .brand { 
+              font-size: 28px; 
+              font-weight: 900; 
+              color: #0f172a; 
+              text-transform: uppercase; 
+              letter-spacing: -1px;
+              margin: 0;
+            }
+            .child-id {
+              font-size: 14px;
+              font-weight: 700;
+              color: #FF7733;
+              margin-top: 4px;
+              letter-spacing: 2px;
+            }
+            .name-badge {
+              position: absolute;
+              top: 30px;
+              left: 20px;
+              background: #FF7733;
+              color: white;
+              padding: 4px 12px;
+              border-radius: 4px;
+              font-size: 10px;
+              font-weight: 900;
+              text-transform: uppercase;
+              z-index: 20;
+            }
+            @media print {
+              body { background: white; }
+              .card { box-shadow: none; border: 1px solid #ddd; }
+            }
           </style>
         </head>
         <body>
           <div class="card">
-            ${photo ? `<img src="${photo}" class="photo" />` : ''}
-            <h2>${childName}</h2>
-            <h1>${childId}</h1>
-            <img src="${qrUrl}" class="qr" />
-            <div class="footer">Verified Guardian Protocol</div>
+            <div class="lanyard-slot">
+              <div class="slot"></div>
+              <div class="slot"></div>
+            </div>
+            <div class="name-badge">${childName}</div>
+            <div class="photo-area">
+              ${photo ? `<img src="${photo}" class="background-image" />` : `<div class="background-image" style="background: linear-gradient(45deg, #1e293b, #0f172a);"></div>`}
+              <div class="qr-overlay">
+                <img src="${qrUrl}" />
+              </div>
+            </div>
+            <div class="info-area">
+              <h1 class="brand">Crowd Care</h1>
+              <span class="child-id">${childId}</span>
+            </div>
           </div>
           <script>
             window.onload = () => {
@@ -294,7 +405,6 @@ export default function ChildrenList() {
                                   {latestEvent && (
                                     <div className="w-full space-y-3">
                                       <div className="bg-slate-900 p-4 rounded-xl border-2 border-primary/20 space-y-2 shadow-inner">
-                                        <p className="text-[9px] font-black text-primary uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3 animate-pulse" /> Field Intelligence Locked</p>
                                         <div className="flex justify-between items-center">
                                           <p className="font-mono text-xs font-bold text-slate-300">{latestEvent.locationLatitude.toFixed(6)}, {latestEvent.locationLongitude.toFixed(6)}</p>
                                           <Badge className="bg-primary/20 border-primary text-primary text-[8px] font-black uppercase">Live Tracking</Badge>
