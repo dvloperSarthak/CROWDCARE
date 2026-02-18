@@ -71,6 +71,10 @@
           "type": "string",
           "description": "The full name of the registered child."
         },
+        "age": {
+          "type": "number",
+          "description": "The age of the child at registration."
+        },
         "parentName": {
           "type": "string",
           "description": "The full name of the parent or guardian registering the child."
@@ -86,6 +90,10 @@
         "emergencyContactNumber": {
           "type": "string",
           "description": "Mobile number for the alternative emergency contact."
+        },
+        "medicalRequirements": {
+          "type": "string",
+          "description": "Any medical alerts, allergies, or special requirements for the child."
         },
         "registeredById": {
           "type": "string",
@@ -346,6 +354,8 @@
         }
       }
     ],
-    "reasoning": "The proposed Firestore structure prioritizes security, scalability, and debuggability by strictly adhering to the mandated design principles, especially Authorization Independence and QAP compliance.\n\n**Authorization Independence via Denormalization:**\n\n1.  **Global Roles:** User roles (Admin, Operator) are segregated into dedicated top-level collections (`/roles_admin/{adminId}`, `/roles_operator/{operatorId}`). Authorization rules for these roles will check for the *existence* of a document at these paths, avoiding any `get()` operations on the primary `/users/{userId}` collection. This ensures that a user's role can be verified atomically and independently of their user profile data.\n2.  **Volunteer-Initiated Events:** For `RescueEvent` documents, the `volunteerId` is explicitly stored within each document. This allows volunteers to query and access *only their own* `RescueEvent` records without needing to perform a `get()` on their `/users/{userId}` profile or any other parent document to determine ownership. This field is self-contained for authorization.\n3.  **Nested Collections:** `NotificationLog` is a subcollection of `RescueEvent`. While access to subcollections often depends on parent document attributes, in this design, `NotificationLog` access is primarily granted to users with 'Operator' or 'Admin' global roles. Since these roles are verified independently via `/roles_operator/{operatorId}` or `/roles_admin/{adminId}` existence checks, no `get()` operation on the parent `RescueEvent` document is required for authorization. This ensures atomic creation and management of `NotificationLog` entries.\n\n**QAPs (Secure List Operations) Support:**\n\n1.  **Role-Based Listing:** For entities like `Child` and `RescueEvent` where Admins and Operators need to view *all* records, the security rules will simply check the presence of the `request.auth.uid` in the respective `/roles_admin` or `/roles_operator` collections. This allows for efficient `list` operations without filtering data at the rules level.\n2.  **User-Scoped Listing:** Volunteers can securely `list` their own `RescueEvent` records using a `where('volunteerId', '==', request.auth.uid)` query. This pattern is inherently QAP-compliant as Firestore security rules can validate this query against the `volunteerId` field in each document, ensuring only owned documents are returned.\n3.  **Homogeneous Collections:** Each collection (e.g., `/children`, `/rescueEvents`) maintains a homogeneous security posture. This means all documents within a given collection follow the same access rules (e.g., all `Child` documents are accessible to Admins/Operators). This simplifies security rules significantly by avoiding complex logic to differentiate document types or states within a single collection for authorization purposes.\n\nBy implementing these strategies, the data structure provides clear, explicit authorization intent, reduces rule complexity, and enhances system performance and debugging capabilities."
+    "reasoning": "The proposed Firestore structure prioritizes security, scalability, and debuggability by strictly adhering to the mandated design principles, especially Authorization Independence and QAP compliance."
   }
 }
+
+    

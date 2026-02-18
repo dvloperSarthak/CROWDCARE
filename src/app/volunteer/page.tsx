@@ -19,21 +19,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { 
   Camera, 
-  Signal, 
   AlertTriangle, 
   CheckCircle2, 
   Loader2, 
   ImagePlus, 
   UserCircle,
   Navigation,
-  ExternalLink,
-  LocateFixed,
-  Radio,
-  Upload,
-  Map as MapIcon,
-  Wifi,
-  WifiOff,
-  Phone,
   PhoneCall,
   CloudUpload,
   X,
@@ -42,20 +33,17 @@ import {
   History,
   Trophy,
   ShieldAlert,
-  Flame
+  Volume2,
+  Activity,
+  User,
+  Wifi
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking, updateDocumentNonBlocking, useAuth, initiateAnonymousSignIn, useCollection } from '@/firebase';
-import { doc, collection, query, where, orderBy } from 'firebase/firestore';
+import { doc, collection, query, where } from 'firebase/firestore';
 import jsQR from 'jsqr';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
-
-// Dynamically import map for inbuilt embed
-const TacticalMap = dynamic(() => import('@/components/tactical-map'), { 
-  ssr: false,
-  loading: () => <div className="h-32 w-full bg-slate-800 animate-pulse rounded-xl" />
-});
 
 export default function VolunteerApp() {
   const { toast } = useToast();
@@ -71,6 +59,8 @@ export default function VolunteerApp() {
   const [statusPreview, setStatusPreview] = useState<string | null>(null);
   const [showReminder, setShowReminder] = useState(false);
   const [isSOSMode, setIsSOSMode] = useState(false);
+  const [isAlarmActive, setIsAlarmActive] = useState(false);
+  const alarmIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -82,74 +72,60 @@ export default function VolunteerApp() {
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
 
-  // Fetch past missions for this volunteer
   const missionsRef = useMemoFirebase(() => {
     if (!user || !db) return null;
     return query(collection(db, 'rescueEvents'), where('volunteerId', '==', user.uid));
   }, [db, user]);
   const { data: pastMissions } = useCollection(missionsRef);
 
-  // Automated Reminder Effect: Ask every 30 minutes
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isBroadcasting && isSent) {
-      interval = setInterval(() => {
-        setShowReminder(true);
-      }, 30 * 60 * 1000); 
+  const guardianRank = useMemo(() => {
+    const count = pastMissions?.length || 0;
+    if (count >= 10) return { name: "Elite Guardian", color: "text-amber-500", icon: <Trophy className="w-4 h-4" /> };
+    if (count >= 5) return { name: "Veteran Scout", color: "text-primary", icon: <Activity className="w-4 h-4" /> };
+    return { name: "Sentinel Scout", color: "text-slate-400", icon: <User className="w-4 h-4" /> };
+  }, [pastMissions]);
+
+  const toggleCrowdAlarm = () => {
+    if (isAlarmActive) {
+      if (alarmIntervalRef.current) clearInterval(alarmIntervalRef.current);
+      setIsAlarmActive(false);
+    } else {
+      setIsAlarmActive(true);
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      alarmIntervalRef.current = setInterval(() => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, audioContext.currentTime);
+        gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 0.5);
+      }, 1000);
+      toast({ title: "Crowd Signal Active", description: "High-frequency audio beacon engaged." });
     }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isBroadcasting, isSent]);
+  };
 
   useEffect(() => {
-    if (!isUserLoading && !user && auth) {
-      initiateAnonymousSignIn(auth);
-    }
-  }, [user, isUserLoading, auth]);
+    return () => { if (alarmIntervalRef.current) clearInterval(alarmIntervalRef.current); };
+  }, []);
 
   useEffect(() => {
-    if (!navigator.geolocation) {
-      setGpsAccuracy('none');
-      return;
-    }
-
+    if (!navigator.geolocation) return;
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        const newCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setCurrentCoords(newCoords);
-        
+        setCurrentCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
         if (pos.coords.accuracy < 15) setGpsAccuracy('high');
         else if (pos.coords.accuracy < 50) setGpsAccuracy('medium');
         else setGpsAccuracy('low');
-
-        if (activeAlertId && db) {
-          setIsBroadcasting(true);
-          const alertRef = doc(db, 'rescueEvents', activeAlertId);
-          updateDocumentNonBlocking(alertRef, {
-            locationLatitude: pos.coords.latitude,
-            locationLongitude: pos.coords.longitude,
-            statusUpdateTime: new Date().toISOString()
-          });
-        }
       },
-      (err) => {
-        setGpsAccuracy('none');
-        setIsBroadcasting(false);
-        const message = err.code === 1 
-          ? "GPS Permission Denied. Protocol halted." 
-          : "Satellite signal lost. Searching...";
-        
-        toast({
-          variant: "destructive",
-          title: "Signal Lost",
-          description: message,
-        });
-      },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+      () => setGpsAccuracy('none'),
+      { enableHighAccuracy: true }
     );
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [activeAlertId, db, toast]);
+  }, []);
 
   const childRef = useMemoFirebase(() => (scannedId && user) ? doc(db, 'children', scannedId) : null, [db, scannedId, user]);
   const { data: childData, isLoading: isLoadingChild } = useDoc(childRef);
@@ -158,26 +134,23 @@ export default function VolunteerApp() {
     setIsScanning(true);
     setScannedId('');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } 
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.setAttribute("playsinline", "true");
         videoRef.current.play();
         requestRef.current = requestAnimationFrame(tick);
       }
     } catch (error) {
       setIsScanning(false);
-      toast({ variant: 'destructive', title: 'Camera Offline', description: 'Guardian scanner requires camera access.' });
+      toast({ variant: 'destructive', title: 'Scanner Offline', description: 'Enable camera to decode IDs.' });
     }
   };
 
   const tick = () => {
-    if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+    if (videoRef.current?.readyState === videoRef.current?.HAVE_ENOUGH_DATA) {
       const canvas = canvasRef.current;
       const video = videoRef.current;
-      if (canvas) {
+      if (canvas && video) {
         const context = canvas.getContext('2d', { willReadFrequently: true });
         if (context) {
           canvas.height = video.videoHeight;
@@ -188,7 +161,6 @@ export default function VolunteerApp() {
           if (code) {
             setScannedId(code.data);
             stopCamera();
-            toast({ title: "ID IDENTIFIED", description: `Guardian ID ${code.data} confirmed.` });
             return;
           }
         }
@@ -206,45 +178,6 @@ export default function VolunteerApp() {
     setIsScanning(false);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new window.Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        if (context) {
-          canvas.width = img.width;
-          canvas.height = img.height;
-          context.drawImage(img, 0, 0);
-          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height);
-          if (code) {
-            setScannedId(code.data);
-            stopCamera();
-            toast({ title: "ID DECODED", description: `Guardian ID ${code.data} verified from source.` });
-          } else {
-            toast({ variant: 'destructive', title: "Scan Failure", description: "No Guardian QR detected." });
-          }
-        }
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleStatusFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setStatusFile(file);
-      const url = URL.createObjectURL(file);
-      setStatusPreview(url);
-    }
-  };
-
   async function uploadToImgBB(file: File): Promise<string | null> {
     try {
       const formData = new FormData();
@@ -253,24 +186,17 @@ export default function VolunteerApp() {
         method: 'POST',
         body: formData
       });
-      if (!response.ok) return null;
       const result = await response.json();
       return result.data?.url || null;
-    } catch (error) {
-      return null;
-    }
+    } catch (error) { return null; }
   }
 
   const handleRescue = async (isSOS: boolean = false) => {
     if (!user || !currentCoords) return;
-    if (!scannedId && !isSOS) return;
-
     setIsDispatching(true);
     
-    let finalStatusPhotoUrl = null;
-    if (statusFile) {
-      finalStatusPhotoUrl = await uploadToImgBB(statusFile);
-    }
+    let photoUrl = null;
+    if (statusFile) photoUrl = await uploadToImgBB(statusFile);
 
     const alertId = isSOS ? `SOS-${Date.now()}` : `A-${Date.now()}`;
     const newAlert = {
@@ -283,60 +209,46 @@ export default function VolunteerApp() {
       status: isSOS ? 'SOS' : 'Scanned',
       statusUpdateTime: new Date().toISOString(),
       isDuplicate: false,
-      statusPhotoUrl: finalStatusPhotoUrl,
-      notes: isSOS ? 'IMMEDIATE VOLUNTEER SOS - EMERGENCY ASSISTANCE REQUIRED' : (finalStatusPhotoUrl ? `Status Photo attached.` : 'Standard alert.'),
+      statusPhotoUrl: photoUrl,
+      notes: isSOS ? 'EMERGENCY SOS TRIGGERED' : 'Field SITREP initiated.',
       isSOS: isSOS
     };
 
     const alertRef = doc(db, 'rescueEvents', alertId);
     setDocumentNonBlocking(alertRef, newAlert, { merge: true });
-
-    setTimeout(() => {
-      setActiveAlertId(alertId);
-      setIsDispatching(false);
-      setIsSent(true);
-      setIsSOSMode(isSOS);
-      toast({ 
-        title: isSOS ? "SOS BROADCAST LIVE" : "SITREP LIVE", 
-        description: isSOS ? "Control Room alerted. Stay in safe location." : "Broadcasting situational telemetry.",
-        variant: isSOS ? "destructive" : "default"
-      });
-    }, 1200);
+    setActiveAlertId(alertId);
+    setIsDispatching(false);
+    setIsSent(true);
+    setIsSOSMode(isSOS);
   };
 
   const closeMission = () => {
+    if (alarmIntervalRef.current) clearInterval(alarmIntervalRef.current);
+    setIsAlarmActive(false);
     setScannedId(''); 
     setIsSent(false); 
-    setActiveAlertId(null); 
-    setIsBroadcasting(false); 
-    setStatusFile(null); 
-    setStatusPreview(null);
-    setShowReminder(false);
+    setActiveAlertId(null);
     setIsSOSMode(false);
-    toast({ title: "MISSION SECURED", description: "Telemetry broadcast terminated." });
   };
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      <NavBar title="Guardian Field Terminal" backHref="/" />
-      
+      <NavBar title="Field Terminal" backHref="/" />
       <main className="container max-w-md mx-auto py-6 px-4 space-y-6">
-        
-        {/* Personalized Stats */}
         <div className="grid grid-cols-2 gap-3">
           <Card className="bg-slate-900 text-white p-3 border-none shadow-lg rounded-2xl">
             <div className="flex items-center gap-2 mb-1">
-              <Trophy className="w-3 h-3 text-primary" />
-              <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Total Missions</span>
+              {guardianRank.icon}
+              <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">{guardianRank.name}</span>
             </div>
             <p className="text-2xl font-black">{pastMissions?.length || 0}</p>
           </Card>
           <Card className="bg-white p-3 border-2 border-slate-900 shadow-md rounded-2xl">
             <div className="flex items-center gap-2 mb-1">
               <Wifi className="w-3 h-3 text-primary animate-pulse" />
-              <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">Network Link</span>
+              <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">GPS Status</span>
             </div>
-            <p className="text-xs font-black uppercase">{gpsAccuracy} Accuracy</p>
+            <p className="text-xs font-black uppercase">{gpsAccuracy} Signal</p>
           </Card>
         </div>
 
@@ -345,164 +257,92 @@ export default function VolunteerApp() {
             <Card className="border-4 border-slate-900 bg-black aspect-square flex flex-col items-center justify-center relative overflow-hidden shadow-2xl rounded-[2.5rem]">
               <video ref={videoRef} className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${isScanning ? 'opacity-100' : 'opacity-0'}`} autoPlay muted playsInline />
               <canvas ref={canvasRef} className="hidden" />
-              
               {isScanning && (
                 <div className="absolute inset-0 pointer-events-none z-10">
                   <div className="w-full h-1 bg-primary shadow-[0_0_20px_rgba(255,119,51,1)] animate-scan-line absolute" />
-                  <div className="absolute inset-0 border-[60px] border-black/50" />
-                  <Button variant="destructive" size="sm" onClick={stopCamera} className="absolute bottom-6 left-1/2 -translate-x-1/2 font-black uppercase text-[10px]">Abort Scanner</Button>
                 </div>
               )}
-
               {!isScanning && (
                 <div className="text-center space-y-4 z-20 px-6 w-full max-w-xs">
                   <div className="bg-white/10 p-8 rounded-full inline-block backdrop-blur-xl border-2 border-white/20 shadow-2xl">
                     <Camera className="w-12 h-12 text-white" />
                   </div>
-                  <Button onClick={startCamera} className="w-full h-16 text-lg font-black uppercase tracking-widest bg-primary rounded-2xl">Start Scanner</Button>
-                  <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full h-12 text-xs font-black uppercase bg-white/5 border-white/20 text-white rounded-xl gap-2">
-                    <ImagePlus className="w-4 h-4" /> Manual Link
-                  </Button>
-                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
+                  <Button onClick={startCamera} className="w-full h-16 text-lg font-black uppercase tracking-widest bg-primary rounded-2xl">Scan ID</Button>
                 </div>
               )}
             </Card>
 
-            <div className="grid grid-cols-1 gap-4">
-              <Button 
-                onClick={() => handleRescue(true)} 
-                disabled={isDispatching || !currentCoords}
-                variant="destructive" 
-                className="h-24 text-2xl font-black uppercase shadow-2xl rounded-3xl border-b-8 border-red-900 flex flex-col gap-0.5 leading-none"
-              >
-                <ShieldAlert className="w-8 h-8 mb-1" />
-                Emergency SOS
-                <span className="text-[10px] opacity-60 font-bold tracking-widest mt-1">DIRECT SIGNAL TO COMMAND</span>
-              </Button>
-            </div>
+            <Button onClick={() => handleRescue(true)} variant="destructive" className="h-20 w-full text-xl font-black uppercase shadow-2xl rounded-3xl border-b-8 border-red-900">
+               <ShieldAlert className="w-6 h-6 mr-3" /> Emergency SOS
+            </Button>
 
             {scannedId && (
               <div className="animate-entrance space-y-4">
                 <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-2xl space-y-4 border-b-8 border-primary relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-2">
-                    <Button size="icon" variant="ghost" className="text-white/40 hover:text-white" onClick={() => setScannedId('')}>
-                      <X className="w-5 h-5" />
-                    </Button>
-                  </div>
                   <div className="flex gap-4 items-center">
                     <div className="w-20 h-20 rounded-2xl border-2 border-primary bg-slate-800 relative overflow-hidden flex-shrink-0">
-                      {isLoadingChild ? <div className="w-full h-full flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div> : childData?.photoUrl ? <Image src={childData.photoUrl} alt="Target" fill className="object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle className="w-10 h-10 text-slate-600" /></div>}
+                      {isLoadingChild ? <Loader2 className="w-6 h-6 animate-spin" /> : childData?.photoUrl ? <Image src={childData.photoUrl} alt="Target" fill className="object-cover" /> : <UserCircle className="w-full h-full text-slate-600" />}
                     </div>
                     <div className="flex-1 space-y-1">
-                      <p className="text-[10px] font-black text-primary uppercase tracking-widest">Subject: {scannedId}</p>
-                      <h3 className="text-2xl font-black uppercase tracking-tight truncate leading-tight">{isLoadingChild ? 'Syncing...' : (childData?.childName || 'Identity check required')}</h3>
+                      <p className="text-[10px] font-black text-primary uppercase tracking-widest">ID: {scannedId}</p>
+                      <h3 className="text-2xl font-black uppercase leading-tight truncate">{isLoadingChild ? 'Syncing...' : (childData?.childName || 'Checking Identity...')}</h3>
                       {!isLoadingChild && childData && (
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge className="bg-teal-500/20 text-teal-300 border-teal-500/30 text-[9px] font-black uppercase">{childData.parentMobileNumber}</Badge>
-                          <Button size="sm" variant="secondary" asChild className="h-6 px-2 bg-teal-600 hover:bg-teal-700 text-white border-0 text-[8px] font-black uppercase">
-                            <a href={`tel:${childData.parentMobileNumber}`}><PhoneCall className="w-2.5 h-2.5 mr-1" /> Call</a>
-                          </Button>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                           <Badge variant="outline" className="text-[9px] border-white/20 text-white">{childData.age} Years Old</Badge>
+                           {childData.medicalRequirements !== 'None' && <Badge variant="destructive" className="text-[9px] bg-red-600 animate-pulse border-none uppercase"><Activity className="w-2 h-2 mr-1" /> Medical Alert</Badge>}
                         </div>
                       )}
                     </div>
                   </div>
+                  
+                  {!isLoadingChild && childData?.medicalRequirements && childData.medicalRequirements !== 'None' && (
+                    <div className="bg-red-950/50 border border-red-800 rounded-xl p-3 text-[10px] font-bold text-red-200">
+                       <Activity className="w-3 h-3 mb-1 text-red-500" />
+                       {childData.medicalRequirements}
+                    </div>
+                  )}
 
                   <div className="pt-4 border-t border-white/10 space-y-3">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Attach Field Condition Photo</p>
                     <div className="flex gap-3 items-center">
                       <div className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-700 bg-black/40 flex items-center justify-center cursor-pointer overflow-hidden relative shadow-pointer" onClick={() => statusPhotoRef.current?.click()}>
                         {statusPreview ? <Image src={statusPreview} alt="Status" fill className="object-cover" /> : <CloudUpload className="w-6 h-6 text-slate-600" />}
                       </div>
-                      <p className="text-[9px] text-slate-500 italic">Visual intel for control room.</p>
-                      <input type="file" ref={statusPhotoRef} className="hidden" accept="image/*" onChange={handleStatusFileChange} />
+                      <p className="text-[9px] text-slate-500 italic">Optional SITREP Photo.</p>
+                      <input type="file" ref={statusPhotoRef} className="hidden" accept="image/*" onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) { setStatusFile(file); setStatusPreview(URL.createObjectURL(file)); }
+                      }} />
                     </div>
                   </div>
-
-                  {currentCoords && (
-                    <div className="w-full h-32 rounded-xl overflow-hidden border-2 border-primary/20 relative shadow-inner">
-                      <iframe title="Field Map Embed" width="100%" height="100%" style={{ border: 0 }} src={`https://maps.google.com/maps?q=${currentCoords.lat},${currentCoords.lng}&z=17&ie=UTF8&iwloc=&output=embed`} allowFullScreen></iframe>
-                    </div>
-                  )}
                 </div>
 
-                <Button onClick={() => handleRescue(false)} disabled={isDispatching || !currentCoords} className="w-full h-20 text-xl font-black uppercase shadow-2xl bg-primary hover:bg-primary/90 rounded-3xl border-b-8 border-orange-800">
-                  {isDispatching ? <Loader2 className="animate-spin" /> : <><AlertTriangle className="mr-3 w-6 h-6" /> Initiate Broadcast</>}
-                </Button>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button onClick={toggleCrowdAlarm} variant={isAlarmActive ? "destructive" : "outline"} className={cn("h-16 font-black uppercase text-[10px]", isAlarmActive && "animate-pulse")}>
+                     <Volume2 className="w-4 h-4 mr-2" /> {isAlarmActive ? "Stop Alarm" : "Crowd Signal"}
+                  </Button>
+                  <Button onClick={() => handleRescue(false)} disabled={isDispatching} className="h-16 font-black uppercase text-[10px] bg-primary">
+                     {isDispatching ? <Loader2 className="animate-spin" /> : <><AlertTriangle className="w-4 h-4 mr-2" /> Dispatch Alert</>}
+                  </Button>
+                </div>
               </div>
             )}
-
-            {/* Past Mission Log */}
-            <div className="space-y-4 pt-6">
-              <div className="flex items-center gap-2">
-                <History className="w-4 h-4 text-primary" />
-                <h3 className="text-sm font-black uppercase tracking-widest">My Mission Log</h3>
-              </div>
-              {pastMissions && pastMissions.length > 0 ? (
-                <div className="space-y-3">
-                  {pastMissions.slice(0, 3).map(mission => (
-                    <Card key={mission.id} className="p-3 border-2 shadow-sm flex items-center justify-between">
-                      <div>
-                        <p className="text-[10px] font-black text-primary">{mission.childId === 'EMERGENCY_SOS' ? 'SOS SIGNAL' : mission.childId}</p>
-                        <p className="text-[9px] font-bold text-muted-foreground uppercase">{new Date(mission.scanTime).toLocaleDateString()}</p>
-                      </div>
-                      <Badge variant={mission.status === 'Child Reunited' ? 'secondary' : (mission.status === 'SOS' ? 'destructive' : 'default')} className="text-[8px] font-black uppercase">{mission.status}</Badge>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs italic text-muted-foreground">No past missions on record.</p>
-              )}
-            </div>
           </>
         ) : (
           <div className="space-y-6 py-8">
-            <Card className={cn(
-              "p-8 text-center space-y-8 shadow-2xl animate-success-pop rounded-[3rem] border-8",
-              isSOSMode ? "border-red-600 bg-red-50" : "border-teal-500 bg-white"
-            )}>
-              <div className={cn(
-                "w-24 h-24 rounded-full flex items-center justify-center mx-auto shadow-inner",
-                isSOSMode ? "bg-red-200 animate-pulse" : "bg-teal-100"
-              )}>
+            <Card className={cn("p-8 text-center space-y-8 shadow-2xl animate-success-pop rounded-[3rem] border-8", isSOSMode ? "border-red-600 bg-red-50" : "border-teal-500 bg-white")}>
+              <div className={cn("w-24 h-24 rounded-full flex items-center justify-center mx-auto shadow-inner", isSOSMode ? "bg-red-200 animate-pulse" : "bg-teal-100")}>
                 {isSOSMode ? <ShieldAlert className="w-16 h-16 text-red-600" /> : <CheckCircle2 className="w-16 h-16 text-teal-600" />}
               </div>
-              <div className="space-y-3">
-                <h2 className={cn(
-                  "text-4xl font-black uppercase tracking-tighter leading-none",
-                  isSOSMode ? "text-red-900" : "text-slate-900"
-                )}>
-                  {isSOSMode ? "SOS ACTIVE" : "Broadcasting"}
-                </h2>
-                <div className={cn(
-                  "p-4 rounded-2xl border-2 text-[10px] font-black uppercase tracking-widest leading-relaxed",
-                  isSOSMode ? "bg-red-950 text-red-400 border-red-900/20" : "bg-slate-900 text-teal-400 border-teal-900/20"
-                )}>
-                  {isSOSMode ? "Emergency signal transmitted. Command notified." : "Live situational telemetry active."}
-                </div>
+              <div className="space-y-3 text-center">
+                <h2 className="text-3xl font-black uppercase tracking-tighter">Mission Active</h2>
+                <Button onClick={toggleCrowdAlarm} variant={isAlarmActive ? "destructive" : "outline"} className={cn("w-full h-14 rounded-2xl font-black uppercase", isAlarmActive && "animate-pulse")}>
+                   <Volume2 className="w-5 h-5 mr-3" /> {isAlarmActive ? "Disable Signal" : "Active Crowd Signal"}
+                </Button>
+                <Button onClick={closeMission} variant="ghost" className="text-muted-foreground font-black uppercase text-[10px]">Terminate Broadcast</Button>
               </div>
-              <Button onClick={closeMission} variant="destructive" className="w-full h-14 border-b-4 border-red-900 font-black uppercase text-sm shadow-xl flex gap-3">
-                <CircleStop className="w-5 h-5" /> Stop Sharing & Close
-              </Button>
             </Card>
           </div>
         )}
-
-        <AlertDialog open={showReminder} onOpenChange={setShowReminder}>
-          <AlertDialogContent className="bg-slate-900 border-4 border-primary text-white">
-            <AlertDialogHeader>
-              <AlertDialogTitle className="flex items-center gap-2 text-primary font-black uppercase tracking-tighter">
-                <Clock className="w-6 h-6 animate-pulse" /> Safety Verification
-              </AlertDialogTitle>
-              <AlertDialogDescription className="text-slate-300 font-bold">
-                You have been broadcasting for 30 minutes. Are you still maintaining situational presence?
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-              <AlertDialogCancel onClick={() => setShowReminder(false)} className="bg-transparent border-2 border-white text-white font-black uppercase text-[10px]">Continue</AlertDialogCancel>
-              <AlertDialogAction onClick={closeMission} className="bg-destructive hover:bg-destructive/90 text-white font-black uppercase text-[10px]">End Mission</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </main>
     </div>
   );

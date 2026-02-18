@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { AlertCircle, Check, User, Clock, Loader2, Sparkles, ShieldAlert, Phone, PhoneCall, Navigation, ExternalLink, LocateFixed, Map as MapIcon, BellRing, Camera, AlertTriangle, Lock, ShieldCheck, BarChart3, History, Volume2, VolumeX, Flame, Siren } from 'lucide-react';
+import { AlertCircle, Check, User, Clock, Loader2, Sparkles, ShieldAlert, Phone, PhoneCall, Navigation, ExternalLink, LocateFixed, Map as MapIcon, BellRing, Camera, AlertTriangle, Lock, ShieldCheck, BarChart3, History, Volume2, VolumeX, Flame, Siren, Download, Activity } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { detectDuplicateRescueAlert } from '@/ai/flows/duplicate-rescue-detection-flow';
 import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useUser, setDocumentNonBlocking } from '@/firebase';
@@ -18,25 +18,20 @@ import Image from 'next/image';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { cn } from '@/lib/utils';
 
-// Dynamically import map to avoid SSR issues with Leaflet
 const TacticalMap = dynamic(() => import('@/components/tactical-map'), { 
   ssr: false,
-  loading: () => (
-    <div className="w-full h-full min-h-[400px] bg-slate-100 flex items-center justify-center border-4 border-dashed border-slate-300 rounded-xl">
-      <Loader2 className="w-10 h-10 animate-spin text-primary" />
-    </div>
-  )
+  loading: () => <div className="w-full h-full min-h-[400px] bg-slate-100 flex items-center justify-center border-4 border-dashed border-slate-300 rounded-xl"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>
 });
 
 export default function ControlRoom() {
   const { toast } = useToast();
   const db = useFirestore();
   const { user, isUserLoading } = useUser();
-  
   const [passcode, setPasscode] = useState('');
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([0, 0]);
 
   const alertsRef = useMemoFirebase(() => user && isAuthorized ? collection(db, 'rescueEvents') : null, [db, user, isAuthorized]);
   const { data: alerts, isLoading: loadingAlerts } = useCollection(alertsRef);
@@ -44,543 +39,172 @@ export default function ControlRoom() {
   const childrenRef = useMemoFirebase(() => user && isAuthorized ? collection(db, 'children') : null, [db, user, isAuthorized]);
   const { data: children } = useCollection(childrenRef);
 
-  const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
-  const [mapCenter, setMapCenter] = useState<[number, number]>([0, 0]);
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
-
-  // Fetch notification logs for the selected alert
-  const logsRef = useMemoFirebase(() => {
-    if (!selectedAlertId || !db) return null;
-    return collection(db, 'rescueEvents', selectedAlertId, 'notificationLogs');
-  }, [db, selectedAlertId]);
-  const { data: notificationLogs } = useCollection(logsRef);
-
   const selectedAlert = alerts?.find(a => a.id === selectedAlertId) || null;
   const relatedChild = children?.find(c => c.id === selectedAlert?.childId) || null;
 
-  // Audio ping on new alert
-  useEffect(() => {
-    if (alerts && alerts.length > 0 && isAudioEnabled) {
-      const latest = [...alerts].sort((a, b) => new Date(b.scanTime).getTime() - new Date(a.scanTime).getTime())[0];
-      const isRecent = (Date.now() - new Date(latest.scanTime).getTime() < 5000);
-      
-      if ((latest.status === 'Scanned' || latest.status === 'SOS') && isRecent) {
-        const soundUrl = latest.status === 'SOS' 
-          ? 'https://assets.mixkit.co/active_storage/sfx/2857/2857-preview.mp3' // Siren sound
-          : 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'; // Standard ping
-        const audio = new Audio(soundUrl);
-        audio.play().catch(() => {});
-      }
-    }
-  }, [alerts, isAudioEnabled]);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setNotificationPermission(Notification.permission);
-      if (Notification.permission === 'default') {
-        Notification.requestPermission().then(setNotificationPermission);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (alerts && alerts.length > 0) {
-      const latest = [...alerts].sort((a, b) => new Date(b.scanTime).getTime() - new Date(a.scanTime).getTime())[0];
-      const isRecent = (Date.now() - new Date(latest.scanTime).getTime() < 8000);
-      
-      if ((latest.status === 'Scanned' || latest.status === 'SOS') && isRecent) {
-        toast({
-          title: latest.status === 'SOS' ? "CRITICAL SOS ALERT" : "SITREP: NEW ALERT",
-          description: latest.status === 'SOS' ? "Volunteer panic signal detected. Respond immediately." : `ID ${latest.childId} detected. Live tracking established.`,
-          variant: latest.status === 'SOS' ? "destructive" : "default",
-          className: cn("font-black", latest.status === 'SOS' ? "animate-pulse" : "bg-primary text-white")
-        });
-
-        if (notificationPermission === 'granted') {
-          new Notification(latest.status === 'SOS' ? "URGENT: SOS SIGNAL" : "Guardian Alert: Child Located", {
-            body: latest.status === 'SOS' ? "A volunteer has triggered an SOS panic signal." : `Incident ${latest.id} (Child ${latest.childId}) is active.`,
-            tag: latest.id
-          });
-        }
-      }
-    }
-  }, [alerts, notificationPermission, toast]);
+  const exportTacticalData = () => {
+    if (!alerts) return;
+    const headers = ["AlertID", "ChildID", "Status", "Latitude", "Longitude", "Time", "Notes"];
+    const rows = alerts.map(a => [a.id, a.childId, a.status, a.locationLatitude, a.locationLongitude, a.scanTime, (a.notes || '').replace(/,/g, ';')]);
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `SITREP_EXPORT_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    toast({ title: "Export Complete", description: "Tactical incident log downloaded." });
+  };
 
   const stats = useMemo(() => {
     if (!alerts || !children) return { active: 0, resolved: 0, total: 0, sos: 0 };
     return {
-      active: alerts.filter(a => a.status !== 'Child Reunited' && a.status !== 'SOS').length,
-      resolved: alerts.filter(a => a.status === 'Child Reunited').length,
+      active: alerts.filter(a => a.status !== 'Child Reunited' && a.status !== 'Resolved').length,
+      resolved: alerts.filter(a => a.status === 'Child Reunited' || a.status === 'Resolved').length,
       total: children.length,
       sos: alerts.filter(a => a.status === 'SOS').length
     };
   }, [alerts, children]);
 
-  const chartData = [
-    { name: 'Active', value: stats.active, color: '#FF7733' },
-    { name: 'Resolved', value: stats.resolved, color: '#33FFD1' },
-    { name: 'SOS', value: stats.sos, color: '#EF4444' },
-  ];
-
   const handleAuth = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passcode === '2411') {
-      setIsAuthorized(true);
-      toast({ title: "ACCESS GRANTED", description: "Node authorized. Tactical link established." });
-    } else {
-      toast({ variant: "destructive", title: "ACCESS DENIED", description: "Invalid Command Passcode." });
-      setPasscode('');
-    }
-  };
-
-  const handleSelectAlert = (alertId: string) => {
-    setSelectedAlertId(alertId);
-    const alert = alerts?.find(a => a.id === alertId);
-    if (alert) {
-      setMapCenter([alert.locationLatitude, alert.locationLongitude]);
-      if (alert.status !== 'SOS' && (alert.isDuplicate === undefined || alert.isDuplicate === false)) {
-        checkDuplicate(alert);
-      }
-    }
-  };
-
-  const checkDuplicate = async (newAlert: any) => {
-    try {
-      const recentAlerts = (alerts || [])
-        .filter(a => a.id !== newAlert.id && a.status !== 'SOS')
-        .map(a => ({
-          alertId: a.id,
-          childId: a.childId,
-          location: `${a.locationLatitude}, ${a.locationLongitude}`,
-          timestamp: a.scanTime
-        }));
-
-      if (recentAlerts.length === 0) return;
-
-      const result = await detectDuplicateRescueAlert({
-        childId: newAlert.childId,
-        location: `${newAlert.locationLatitude}, ${newAlert.locationLongitude}`,
-        timestamp: newAlert.scanTime,
-        recentAlerts
-      });
-
-      if (result.isDuplicate) {
-        const alertRef = doc(db, 'rescueEvents', newAlert.id);
-        updateDocumentNonBlocking(alertRef, { isDuplicate: true, notes: result.reason, statusUpdateTime: new Date().toISOString() });
-      }
-    } catch (err) {}
-  };
-
-  const notifyParent = (alertId: string) => {
-    const alertRef = doc(db, 'rescueEvents', alertId);
-    const alertData = alerts?.find(a => a.id === alertId);
-    const childData = children?.find(c => c.id === alertData?.childId);
-
-    updateDocumentNonBlocking(alertRef, { status: 'Parent Notified', statusUpdateTime: new Date().toISOString() });
-    
-    const logId = `LOG-${Date.now()}`;
-    const logRef = doc(db, 'rescueEvents', alertId, 'notificationLogs', logId);
-    setDocumentNonBlocking(logRef, {
-      id: logId,
-      rescueEventId: alertId,
-      recipientMobileNumber: childData?.parentMobileNumber || 'N/A',
-      notificationType: 'Push Notification',
-      messageBody: `Guardian Alert: ${childData?.childName || 'Your child'} has been located. Please proceed to the nearest Hub.`,
-      sentTime: new Date().toISOString(),
-      deliveryStatus: 'Sent'
-    }, { merge: true });
-
-    toast({ title: "DISPATCH COMPLETE", description: "Parent notified via Guardian Network." });
-  };
-
-  const resolveRescue = (alertId: string) => {
-    const alertRef = doc(db, 'rescueEvents', alertId);
-    updateDocumentNonBlocking(alertRef, { status: 'Child Reunited', resolvedTime: new Date().toISOString(), statusUpdateTime: new Date().toISOString() });
-    toast({ title: "MISSION RESOLVED", description: "Child cleared from active SITREP." });
-    setSelectedAlertId(null);
-  };
-
-  const clearSOS = (alertId: string) => {
-    const alertRef = doc(db, 'rescueEvents', alertId);
-    updateDocumentNonBlocking(alertRef, { status: 'Resolved', resolvedTime: new Date().toISOString(), statusUpdateTime: new Date().toISOString() });
-    toast({ title: "SOS RESOLVED", description: "Emergency cleared." });
-    setSelectedAlertId(null);
+    if (passcode === '2411') setIsAuthorized(true);
+    else { toast({ variant: "destructive", title: "Access Denied" }); setPasscode(''); }
   };
 
   if (!isAuthorized) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col">
-        <NavBar title="Command Authentication" backHref="/" />
-        <main className="flex-1 flex items-center justify-center p-6">
-          <Card className="max-w-md w-full border-4 border-primary shadow-[0_0_50px_rgba(255,119,51,0.3)] p-8 space-y-8 bg-slate-900 text-white rounded-[2rem]">
-            <div className="flex flex-col items-center gap-6 text-center">
-              <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center border-4 border-primary animate-pulse shadow-[0_0_20px_rgba(255,119,51,0.5)]">
-                <Lock className="w-10 h-10 text-primary" />
-              </div>
-              <div className="space-y-2">
-                <h2 className="text-3xl font-black uppercase tracking-tighter">Control Room</h2>
-                <div className="flex items-center justify-center gap-2">
-                  <ShieldAlert className="w-4 h-4 text-primary" />
-                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em]">Guardian Access Restricted</p>
-                </div>
-              </div>
-            </div>
-            
-            <form onSubmit={handleAuth} className="space-y-6">
-              <div className="space-y-2">
-                <p className="text-center text-[9px] font-black text-slate-500 uppercase tracking-widest">Enter Command Passcode</p>
-                <Input 
-                  type="password" 
-                  placeholder="****" 
-                  className="h-16 text-center text-4xl font-black tracking-[0.5em] bg-slate-800 border-slate-700 text-white placeholder:text-slate-700 focus:ring-primary focus:border-primary rounded-xl"
-                  value={passcode}
-                  onChange={(e) => setPasscode(e.target.value)}
-                  maxLength={4}
-                  autoFocus
-                />
-              </div>
-              <Button type="submit" className="w-full h-14 text-lg font-black uppercase tracking-widest shadow-xl bg-primary hover:bg-primary/90">
-                Authenticate Node
-              </Button>
-            </form>
-
-            <div className="pt-4 flex flex-col items-center gap-4">
-               <div className="flex items-center gap-2 text-[9px] font-black text-slate-500 uppercase">
-                 <ShieldCheck className="w-3 h-3" /> Encrypted Session
-               </div>
-               <Button variant="ghost" className="text-slate-400 font-black uppercase text-[10px] hover:text-white" asChild>
-                  <a href="/">Abort and Return</a>
-               </Button>
-            </div>
-          </Card>
-        </main>
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6">
+        <Card className="max-w-md w-full border-4 border-primary p-8 space-y-8 bg-slate-900 text-white rounded-[2rem]">
+          <div className="text-center space-y-4">
+             <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center border-4 border-primary mx-auto animate-pulse"><Lock className="w-10 h-10 text-primary" /></div>
+             <h2 className="text-3xl font-black uppercase tracking-tighter">Command Authentication</h2>
+             <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Node Secure Passcode Required</p>
+          </div>
+          <form onSubmit={handleAuth} className="space-y-4">
+            <Input type="password" placeholder="****" className="h-16 text-center text-4xl font-black bg-slate-800 border-none text-white tracking-[0.5em]" value={passcode} onChange={e => setPasscode(e.target.value)} maxLength={4} />
+            <Button type="submit" className="w-full h-14 font-black uppercase tracking-widest bg-primary">Authenticate Node</Button>
+          </form>
+        </Card>
       </div>
     );
   }
 
-  const activeAlerts = useMemo(() => {
-    if (!alerts) return [];
-    return [...alerts]
-      .filter(a => a.status !== 'Child Reunited' && a.status !== 'Resolved')
-      .sort((a, b) => {
-        // SOS always at the top
-        if (a.status === 'SOS' && b.status !== 'SOS') return -1;
-        if (a.status !== 'SOS' && b.status === 'SOS') return 1;
-        return new Date(b.scanTime).getTime() - new Date(a.scanTime).getTime();
-      });
-  }, [alerts]);
-
   return (
     <div className="min-h-screen bg-background pb-20">
-      <NavBar title="Guardian Tactical Dashboard" backHref="/" />
-      
-      <main className="container-fluid py-6 px-6 mx-auto space-y-8">
-        
-        {/* Stats Row */}
+      <NavBar title="Command Dashboard" backHref="/" />
+      <main className="container py-6 px-6 mx-auto space-y-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card className={cn("border-l-8 bg-white shadow-md transition-colors", stats.sos > 0 ? "border-l-red-600 bg-red-50" : "border-l-primary")}>
-            <CardContent className="p-6 flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Active SITREPs</p>
-                <h3 className="text-4xl font-black text-slate-900">{stats.active}</h3>
-                {stats.sos > 0 && <p className="text-[10px] font-black text-red-600 animate-pulse mt-1">INC. {stats.sos} EMERGENCY SOS</p>}
-              </div>
-              <div className={cn("w-12 h-12 rounded-full flex items-center justify-center", stats.sos > 0 ? "bg-red-100 animate-pulse" : "bg-primary/10")}>
-                {stats.sos > 0 ? <Siren className="w-6 h-6 text-red-600" /> : <ShieldAlert className="w-6 h-6 text-primary" />}
-              </div>
-            </CardContent>
+          <Card className="border-l-8 border-l-primary bg-white p-6 flex items-center justify-between">
+            <div><p className="text-[10px] font-black text-muted-foreground uppercase">Active Alerts</p><h3 className="text-4xl font-black">{stats.active}</h3></div>
+            <ShieldAlert className="w-8 h-8 text-primary" />
           </Card>
-          <Card className="border-l-8 border-l-teal-500 bg-white shadow-md">
-            <CardContent className="p-6 flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Resolved Missions</p>
-                <h3 className="text-4xl font-black text-slate-900">{stats.resolved}</h3>
-              </div>
-              <div className="w-12 h-12 rounded-full bg-teal-500/10 flex items-center justify-center">
-                <Check className="w-6 h-6 text-teal-600" />
-              </div>
-            </CardContent>
+          <Card className="border-l-8 border-l-teal-500 bg-white p-6 flex items-center justify-between">
+            <div><p className="text-[10px] font-black text-muted-foreground uppercase">Resolved</p><h3 className="text-4xl font-black">{stats.resolved}</h3></div>
+            <Check className="w-8 h-8 text-teal-600" />
           </Card>
-          <Card className="border-l-8 border-l-slate-900 bg-white shadow-md">
-            <CardContent className="p-6 flex items-center justify-between">
-              <div>
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Registered</p>
-                <h3 className="text-4xl font-black text-slate-900">{stats.total}</h3>
-              </div>
-              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
-                <User className="w-6 h-6 text-slate-600" />
-              </div>
-            </CardContent>
+          <Card className="border-l-8 border-l-red-600 bg-white p-6 flex items-center justify-between">
+            <div><p className="text-[10px] font-black text-muted-foreground uppercase">SOS Emergencies</p><h3 className="text-4xl font-black text-red-600">{stats.sos}</h3></div>
+            <Siren className="w-8 h-8 text-red-600" />
           </Card>
-          <Card className="bg-slate-900 text-white shadow-md">
-            <CardContent className="p-4 h-full flex flex-row items-center gap-4">
-              <div className="h-full w-24">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={chartData} innerRadius={25} outerRadius={35} paddingAngle={5} dataKey="value">
-                      {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex-1">
-                <p className="text-[9px] font-black text-primary uppercase tracking-widest">Event Health</p>
-                <p className="text-xs font-bold text-slate-400">Tactical coverage operational across all zones.</p>
-              </div>
-            </CardContent>
+          <Card className="bg-slate-900 text-white p-4 flex flex-row items-center gap-4">
+             <div className="flex-1">
+                <p className="text-[10px] font-black text-primary uppercase">Tactical Ops</p>
+                <Button size="sm" variant="outline" className="mt-2 h-7 text-[8px] font-black uppercase border-primary text-primary hover:bg-primary/10" onClick={exportTacticalData}>
+                   <Download className="w-3 h-3 mr-1" /> Export SITREPs
+                </Button>
+             </div>
+             <BarChart3 className="w-10 h-10 text-primary opacity-20" />
           </Card>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
           <div className="lg:col-span-8 space-y-6">
             <Card className="shadow-2xl border-4 border-slate-900 h-[500px] overflow-hidden">
-              <CardHeader className="bg-slate-900 text-white p-4 flex flex-row items-center justify-between border-b-4 border-primary">
-                <div className="flex items-center gap-2">
-                  <MapIcon className="w-5 h-5 text-primary" />
-                  <CardTitle className="text-md uppercase font-black tracking-widest">Tactical Field View</CardTitle>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    className={`h-7 px-2 ${isAudioEnabled ? 'text-primary' : 'text-slate-500'}`} 
-                    onClick={() => setIsAudioEnabled(!isAudioEnabled)}
-                  >
-                    {isAudioEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-                  </Button>
-                  {notificationPermission !== 'granted' && (
-                    <Button size="sm" variant="outline" className="h-7 text-[9px] font-black uppercase border-yellow-500 text-yellow-500 hover:bg-yellow-500/10 gap-1.5" onClick={() => Notification.requestPermission()}>
-                        <BellRing className="w-3 h-3" /> Enable Alerts
-                    </Button>
-                  )}
-                  <Badge variant="outline" className="animate-pulse bg-primary/10 border-primary text-primary px-3 text-[9px] font-black uppercase">
-                    <div className="w-2 h-2 rounded-full bg-primary mr-2" /> Live GPS Stream
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0 h-full relative">
-                <TacticalMap 
-                  alerts={alerts || []} 
-                  center={mapCenter} 
-                  onMarkerClick={handleSelectAlert} 
-                />
-              </CardContent>
+               <TacticalMap alerts={alerts || []} center={mapCenter} onMarkerClick={setSelectedAlertId} />
             </Card>
-
-            <Card className="shadow-xl border-2 overflow-hidden">
-              <CardHeader className="bg-slate-50 border-b py-4">
-                <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-primary" /> Incident Logs
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50/50">
-                      <TableHead className="font-black text-[10px] uppercase">Incident</TableHead>
-                      <TableHead className="font-black text-[10px] uppercase">Telemetry</TableHead>
-                      <TableHead className="font-black text-[10px] uppercase">Status</TableHead>
-                      <TableHead className="text-right font-black text-[10px] uppercase">Ops</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loadingAlerts ? (
-                      <TableRow><TableCell colSpan={4} className="text-center py-12"><Loader2 className="animate-spin inline mr-2" /> Syncing...</TableCell></TableRow>
-                    ) : activeAlerts.length === 0 ? (
-                      <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground italic font-medium tracking-widest text-xs uppercase">All zones clear</TableCell></TableRow>
-                    ) : (
-                      activeAlerts.map((alert) => (
-                        <TableRow 
-                          key={alert.id} 
-                          className={cn(
-                            "cursor-pointer transition-colors", 
-                            selectedAlertId === alert.id ? 'bg-primary/10' : '',
-                            alert.status === 'SOS' ? 'bg-red-50 hover:bg-red-100 border-l-4 border-l-red-600' : ''
-                          )} 
-                          onClick={() => handleSelectAlert(alert.id)}
-                        >
-                          <TableCell className={cn("font-black", alert.status === 'SOS' ? "text-red-600" : "text-primary")}>
-                            <div className="flex items-center gap-2">
-                              {alert.status === 'SOS' && <Siren className="w-4 h-4 animate-pulse" />}
-                              {alert.childId}
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-mono text-[10px] font-bold">
-                            {alert.locationLatitude.toFixed(6)}, {alert.locationLongitude.toFixed(6)}
-                          </TableCell>
-                          <TableCell><Badge className="text-[9px] font-black uppercase" variant={alert.status === 'SOS' ? "destructive" : (alert.isDuplicate ? "destructive" : "default")}>{alert.status}</Badge></TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <Button size="sm" variant="ghost" className="h-7 text-[9px] font-black uppercase hover:bg-primary/10" onClick={(e) => { e.stopPropagation(); setMapCenter([alert.locationLatitude, alert.locationLongitude]); setSelectedAlertId(alert.id); }}>
-                                <LocateFixed className="w-3 h-3 mr-1" /> Locate
-                              </Button>
-                              <Button size="sm" variant="ghost" className="h-7 text-[9px] font-black uppercase hover:bg-primary/10 text-primary" asChild onClick={(e) => e.stopPropagation()}>
-                                <a href={`https://www.google.com/maps/search/?api=1&query=${alert.locationLatitude},${alert.locationLongitude}`} target="_blank" rel="noopener noreferrer">
-                                  <Navigation className="w-3 h-3 mr-1" /> App
-                                </a>
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
+            <Card className="shadow-xl border-2">
+               <Table>
+                 <TableHeader><TableRow className="bg-slate-50"><TableHead className="font-black text-[10px] uppercase">Incident ID</TableHead><TableHead className="font-black text-[10px] uppercase">Status</TableHead><TableHead className="text-right font-black text-[10px] uppercase">Ops</TableHead></TableRow></TableHeader>
+                 <TableBody>
+                   {alerts?.map(alert => (
+                     <TableRow key={alert.id} className={cn(selectedAlertId === alert.id && "bg-primary/10", alert.status === 'SOS' && "bg-red-50")}>
+                        <TableCell className="font-black">{alert.id} ({alert.childId})</TableCell>
+                        <TableCell><Badge variant={alert.status === 'SOS' ? "destructive" : "default"} className="text-[9px] font-black uppercase">{alert.status}</Badge></TableCell>
+                        <TableCell className="text-right"><Button size="sm" variant="ghost" className="h-7 text-[9px] font-black uppercase" onClick={() => { setMapCenter([alert.locationLatitude, alert.locationLongitude]); setSelectedAlertId(alert.id); }}>Locate</Button></TableCell>
+                     </TableRow>
+                   ))}
+                 </TableBody>
+               </Table>
             </Card>
           </div>
 
-          <div className="lg:col-span-4 space-y-6">
-            <Card className={cn(
-              "shadow-2xl border-4 transition-all duration-500", 
-              !selectedAlert ? 'opacity-40 grayscale pointer-events-none scale-95 origin-top' : 'opacity-100 scale-100',
-              selectedAlert?.status === 'SOS' ? 'border-red-600' : ''
-            )}>
-              <CardHeader className={cn("text-white rounded-t-lg border-b-4 p-4", selectedAlert?.status === 'SOS' ? "bg-red-700 border-red-900" : "bg-slate-900 border-primary")}>
-                <CardTitle className="flex items-center gap-2 text-md uppercase font-black tracking-tight">
-                  {selectedAlert?.status === 'SOS' ? <Siren className="w-5 h-5 animate-pulse" /> : <ShieldAlert className="w-5 h-5 text-primary" />}
-                  {selectedAlert?.status === 'SOS' ? "CRITICAL EMERGENCY" : "SITREP Detail"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-6">
-                {selectedAlert ? (
-                  <>
-                    {selectedAlert.status === 'SOS' && (
-                      <div className="bg-red-100 border-2 border-red-600 p-4 rounded-xl flex items-start gap-3 animate-pulse">
-                        <Siren className="w-6 h-6 text-red-600 shrink-0" />
-                        <div className="space-y-1">
-                          <p className="text-[12px] font-black text-red-900 uppercase tracking-widest">IMMEDIATE SOS RESPONSE</p>
-                          <p className="text-[10px] font-bold text-red-700 leading-tight">Volunteer has triggered a panic signal. GPS tracking is live. Dispatch response team to coordinates.</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedAlert.isDuplicate && (
-                      <div className="bg-destructive/10 border-2 border-destructive p-3 rounded-xl flex items-start gap-3">
-                        <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
-                        <div className="space-y-1">
-                          <p className="text-[10px] font-black text-destructive uppercase tracking-widest">Duplicate Incident Detected</p>
-                          <p className="text-[10px] font-bold text-destructive/80 leading-tight">{selectedAlert.notes || 'Identified as high-probability duplicate of recent alert.'}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedAlert.status !== 'SOS' && (
-                      <div className="flex gap-4 items-start">
-                        <div className="w-24 h-24 rounded-xl border-4 border-primary overflow-hidden relative shadow-lg bg-slate-100 shrink-0">
-                          {relatedChild?.photoUrl ? <Image src={relatedChild.photoUrl} alt={relatedChild.childName} fill className="object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><User className="w-12 h-12" /></div>}
+          <div className="lg:col-span-4">
+            <Card className={cn("shadow-2xl border-4 transition-all duration-500 h-full", !selectedAlert ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100', selectedAlert?.status === 'SOS' ? "border-red-600" : "border-slate-900")}>
+               <CardHeader className={cn("text-white p-4 font-black uppercase", selectedAlert?.status === 'SOS' ? "bg-red-700" : "bg-slate-900")}>
+                 <CardTitle className="text-sm flex items-center gap-2">
+                   {selectedAlert?.status === 'SOS' ? <Siren className="w-4 h-4" /> : <ShieldAlert className="w-4 h-4 text-primary" />}
+                   SITREP: {selectedAlert?.childId}
+                 </CardTitle>
+               </CardHeader>
+               <CardContent className="pt-6 space-y-6">
+                 {selectedAlert ? (
+                   <>
+                     <div className="flex gap-4 items-start">
+                        <div className="w-20 h-20 rounded-xl border-4 border-primary overflow-hidden relative shadow-lg shrink-0">
+                           {relatedChild?.photoUrl ? <Image src={relatedChild.photoUrl} alt="Subject" fill className="object-cover" /> : <User className="w-full h-full text-slate-200" />}
                         </div>
                         <div className="space-y-1">
-                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Incident Target</p>
-                          <h3 className="text-2xl font-black text-primary tracking-tighter">{selectedAlert.childId}</h3>
-                          <p className="font-black text-slate-900 text-sm uppercase">{relatedChild?.childName || 'Identity Check Required'}</p>
+                           <p className="text-[10px] font-black text-primary uppercase">{relatedChild?.childName || 'Unregistered'}</p>
+                           <p className="text-xs font-bold text-slate-500">{relatedChild?.age || '?'} Years Old</p>
+                           {relatedChild?.medicalRequirements && relatedChild.medicalRequirements !== 'None' && (
+                             <div className="mt-2 text-[9px] font-black uppercase text-red-600 animate-pulse flex items-center gap-1"><Activity className="w-3 h-3" /> Medical Alert</div>
+                           )}
                         </div>
-                      </div>
-                    )}
+                     </div>
 
-                    {selectedAlert.statusPhotoUrl && (
-                      <div className="space-y-2">
-                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2"><Camera className="w-3 h-3" /> Field Status Photo</p>
-                        <div className="w-full h-48 rounded-xl overflow-hidden border-2 border-slate-200 relative shadow-inner">
+                     {relatedChild?.medicalRequirements && relatedChild.medicalRequirements !== 'None' && (
+                       <div className="bg-red-50 border border-red-200 p-3 rounded-xl text-[10px] font-medium text-red-900">
+                          <p className="font-black uppercase mb-1">Medical Briefing:</p>
+                          {relatedChild.medicalRequirements}
+                       </div>
+                     )}
+
+                     {selectedAlert.statusPhotoUrl && (
+                       <div className="space-y-2">
+                         <p className="text-[9px] font-black uppercase text-muted-foreground flex items-center gap-1"><Camera className="w-3 h-3" /> Field Status Intel</p>
+                         <div className="w-full h-40 relative rounded-xl overflow-hidden border-2 border-slate-200">
                             <Image src={selectedAlert.statusPhotoUrl} alt="Field Status" fill className="object-cover" />
-                        </div>
-                      </div>
-                    )}
+                         </div>
+                       </div>
+                     )}
 
-                    {selectedAlert.status !== 'SOS' && (
-                      <div className="space-y-3">
-                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2"><History className="w-3 h-3 text-teal-500" /> Notification History</p>
-                        <div className="max-h-32 overflow-y-auto space-y-2 pr-2">
-                          {notificationLogs && notificationLogs.length > 0 ? (
-                            notificationLogs.map(log => (
-                              <div key={log.id} className="bg-slate-50 border rounded-lg p-2 text-[10px]">
-                                <div className="flex justify-between items-center mb-1">
-                                  <span className="font-black text-teal-600">{log.deliveryStatus}</span>
-                                  <span className="text-slate-400 font-bold">{new Date(log.sentTime).toLocaleTimeString()}</span>
-                                </div>
-                                <p className="text-slate-700 leading-tight">{log.messageBody}</p>
-                              </div>
-                            ))
-                          ) : (
-                            <p className="text-[10px] italic text-slate-400">No notifications dispatched.</p>
-                          )}
+                     <div className="p-4 bg-slate-900 rounded-xl border-2 border-primary/20 space-y-3">
+                        <h4 className="text-[9px] font-black text-primary uppercase flex items-center gap-2"><Navigation className="w-3 h-3" /> Telemetry</h4>
+                        <div className="w-full h-24 rounded-lg overflow-hidden border border-slate-700">
+                           <iframe width="100%" height="100%" style={{ border: 0 }} src={`https://maps.google.com/maps?q=${selectedAlert.locationLatitude},${selectedAlert.locationLongitude}&t=k&z=17&output=embed`} allowFullScreen></iframe>
                         </div>
-                      </div>
-                    )}
+                     </div>
 
-                    <div className={cn("p-4 rounded-xl border-2 space-y-3 shadow-inner", selectedAlert.status === 'SOS' ? "bg-red-950 border-red-800" : "bg-slate-900 border-primary/20")}>
-                      <div className="flex items-center justify-between">
-                        <h4 className={cn("text-[10px] font-black uppercase tracking-widest flex items-center gap-2", selectedAlert.status === 'SOS' ? "text-red-400" : "text-primary")}>
-                          <Navigation className="w-3 h-3 animate-pulse" /> Live Telemetry
-                        </h4>
-                      </div>
-                      <div className="w-full h-32 rounded-lg overflow-hidden border-2 border-slate-700 shadow-xl">
-                        <iframe
-                          title="Google Maps Satellite"
-                          width="100%"
-                          height="100%"
-                          style={{ border: 0 }}
-                          src={`https://maps.google.com/maps?q=${selectedAlert.locationLatitude},${selectedAlert.locationLongitude}&t=k&z=17&ie=UTF8&iwloc=&output=embed`}
-                          allowFullScreen
-                        ></iframe>
-                      </div>
-                    </div>
-
-                    {selectedAlert.status !== 'SOS' ? (
-                      <div className="p-4 bg-teal-50 border-2 border-teal-100 rounded-xl space-y-3">
-                        <div className="flex justify-between items-start">
-                          <div className="space-y-1">
-                            <h4 className="text-[9px] font-black text-teal-900 uppercase tracking-widest flex items-center gap-2"><Phone className="w-3 h-3" /> Contact Command</h4>
-                            <p className="font-black text-teal-950 text-md uppercase leading-tight">{relatedChild?.parentName || 'DATA RESTRICTED'}</p>
-                            <p className="text-xl font-black text-teal-600 tracking-tighter">{relatedChild?.parentMobileNumber || '--- --- ----'}</p>
-                          </div>
-                          {relatedChild?.parentMobileNumber && (
-                            <Button size="sm" variant="secondary" asChild className="bg-teal-600 hover:bg-teal-700 text-white font-black uppercase text-[10px] h-10 px-4 shadow-lg">
-                              <a href={`tel:${relatedChild.parentMobileNumber}`}>
-                                <PhoneCall className="w-4 h-4 mr-2" /> Call Parent
-                              </a>
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="p-4 bg-red-900 border-2 border-red-700 rounded-xl space-y-3">
-                        <div className="flex flex-col gap-3">
-                          <p className="text-[10px] font-black text-red-200 uppercase tracking-widest">Emergency Tactical Contact</p>
-                          <Button size="lg" className="w-full bg-white text-red-600 hover:bg-red-50 font-black uppercase tracking-widest h-14" asChild>
-                            <a href={`tel:911`}>
-                              <PhoneCall className="w-5 h-5 mr-3" /> Call Emergency (911)
-                            </a>
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="pt-4 border-t-2 space-y-3">
-                      {selectedAlert.status === 'SOS' ? (
-                        <Button className="w-full h-14 text-lg font-black uppercase tracking-widest bg-red-600 hover:bg-red-700 shadow-lg" onClick={() => clearSOS(selectedAlert.id)}>
-                          Clear SOS Mode
-                        </Button>
-                      ) : (
-                        <>
-                          <Button className="w-full h-14 text-lg font-black uppercase tracking-widest bg-teal-600 hover:bg-teal-700 shadow-lg" disabled={selectedAlert.status !== 'Scanned'} onClick={() => notifyParent(selectedAlert.id)}>
-                            Notify Parent
-                          </Button>
-                          <Button className="w-full h-14 text-lg font-black uppercase tracking-widest" variant="outline" disabled={selectedAlert.status !== 'Parent Notified'} onClick={() => resolveRescue(selectedAlert.id)}>
-                            Resolve & Clear
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-center py-24 text-muted-foreground space-y-4">
-                    <div className="bg-slate-100 w-16 h-16 rounded-full mx-auto flex items-center justify-center border-2 border-dashed border-slate-300"><AlertCircle className="w-8 h-8 opacity-20" /></div>
-                    <p className="text-xs font-black uppercase tracking-widest">Select Incident to Track</p>
-                  </div>
-                )}
-              </CardContent>
+                     <div className="space-y-3 pt-4 border-t">
+                        <Button className="w-full h-12 font-black uppercase bg-teal-600 hover:bg-teal-700" disabled={selectedAlert.status !== 'Scanned'} onClick={() => {
+                          const logId = `LOG-${Date.now()}`;
+                          const logRef = doc(db, 'rescueEvents', selectedAlert.id, 'notificationLogs', logId);
+                          setDocumentNonBlocking(logRef, { id: logId, rescueEventId: selectedAlert.id, recipientMobileNumber: relatedChild?.parentMobileNumber || 'N/A', notificationType: 'Tactical Alert', messageBody: `Guardian Alert: ${relatedChild?.childName || 'Your child'} located. Proceed to nearest hub.`, sentTime: new Date().toISOString(), deliveryStatus: 'Delivered' }, { merge: true });
+                          updateDocumentNonBlocking(doc(db, 'rescueEvents', selectedAlert.id), { status: 'Parent Notified' });
+                          toast({ title: "Dispatch Complete" });
+                        }}>Notify Parent</Button>
+                        <Button variant="outline" className="w-full h-12 font-black uppercase border-slate-900" onClick={() => {
+                          updateDocumentNonBlocking(doc(db, 'rescueEvents', selectedAlert.id), { status: 'Child Reunited', resolvedTime: new Date().toISOString() });
+                          toast({ title: "Mission Resolved" });
+                          setSelectedAlertId(null);
+                        }}>Mission Clear</Button>
+                     </div>
+                   </>
+                 ) : (
+                   <div className="text-center py-24 text-muted-foreground uppercase text-[10px] font-black tracking-widest">Select Incident Log</div>
+                 )}
+               </CardContent>
             </Card>
           </div>
         </div>

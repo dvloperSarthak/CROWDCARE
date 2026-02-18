@@ -6,10 +6,11 @@ import { NavBar } from '@/components/nav-bar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { UserPlus, CheckCircle2, Loader2, QrCode, Lock, ImagePlus, X, CloudUpload } from 'lucide-react';
+import { UserPlus, CheckCircle2, Loader2, QrCode, Lock, ImagePlus, X, CloudUpload, Activity } from 'lucide-react';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import Image from 'next/image';
@@ -59,14 +60,11 @@ export default function AdminRegister() {
     try {
       const formData = new FormData();
       formData.append('image', file);
-      
       const response = await fetch('https://api.imgbb.com/1/upload?key=6874d5a39ecc03ce08ca12b3f4f00fd8', {
         method: 'POST',
         body: formData
       });
-
       if (!response.ok) return null;
-      
       const result = await response.json();
       return result.data?.url || null;
     } catch (error) {
@@ -92,9 +90,11 @@ export default function AdminRegister() {
     const newChild = {
       id,
       childName: formData.get('name') as string,
+      age: parseInt(formData.get('age') as string) || 0,
       parentName: formData.get('parentName') as string,
       parentMobileNumber: formData.get('parentPhone') as string,
       emergencyContactNumber: formData.get('emergencyContact') as string,
+      medicalRequirements: formData.get('medical') as string || 'None',
       registrationDate: new Date().toISOString(),
       registeredById: user.uid,
       isActive: true,
@@ -109,7 +109,7 @@ export default function AdminRegister() {
       setIsSuccess(true);
       toast({
         title: "Registry Updated",
-        description: `Guardian ID ${id} is now live on secure servers via ImgBB.`,
+        description: `Guardian ID ${id} is now live on secure servers.`,
       });
 
       setTimeout(() => {
@@ -160,10 +160,6 @@ export default function AdminRegister() {
             <div className="bg-slate-100 p-6 rounded-xl border-2 border-dashed border-slate-300">
                <p className="text-[10px] font-black text-slate-500 uppercase mb-1 tracking-widest">Active Guardian ID</p>
                <p className="text-5xl font-black text-primary tracking-tighter">{generatedId}</p>
-            </div>
-            <div className="flex items-center justify-center gap-2 text-sm font-bold text-teal-600 animate-pulse">
-               <Loader2 className="w-4 h-4 animate-spin" />
-               Syncing with Central Control...
             </div>
           </Card>
         </main>
@@ -216,22 +212,27 @@ export default function AdminRegister() {
                     </div>
                   )}
                 </div>
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  className="hidden" 
-                  accept="image/*" 
-                  onChange={handleFileChange} 
-                />
-                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-2">
-                  <CloudUpload className="w-3 h-3" /> Secure ImgBB Hosting
-                </p>
+                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="md:col-span-3 grid gap-2">
+                  <Label htmlFor="name" className="text-xs uppercase font-black tracking-widest">Child's Full Name</Label>
+                  <Input id="name" name="name" placeholder="Enter child's name" className="h-12 text-lg font-bold" required />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="age" className="text-xs uppercase font-black tracking-widest">Age</Label>
+                  <Input id="age" name="age" type="number" placeholder="0" className="h-12 text-lg font-bold" required />
+                </div>
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="name" className="text-xs uppercase font-black tracking-widest">Child's Full Name</Label>
-                <Input id="name" name="name" placeholder="Enter child's name" className="h-12 text-lg font-bold" required />
+                <Label htmlFor="medical" className="text-xs uppercase font-black tracking-widest flex items-center gap-2">
+                  <Activity className="w-3 h-3 text-red-500" /> Medical Alerts / Requirements
+                </Label>
+                <Textarea id="medical" name="medical" placeholder="List any allergies, medications, or special needs..." className="min-h-[100px] font-medium" />
               </div>
+
               <div className="grid gap-2">
                 <Label htmlFor="parentName" className="text-xs uppercase font-black tracking-widest">Parent / Guardian Name</Label>
                 <Input id="parentName" name="parentName" placeholder="Enter parent's name" className="h-12" required />
@@ -249,17 +250,7 @@ export default function AdminRegister() {
             </CardContent>
             <CardFooter className="pt-4">
               <Button type="submit" className="w-full text-xl h-14 font-black tracking-widest shadow-lg uppercase" disabled={loading}>
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 animate-spin" />
-                    Transmitting...
-                  </>
-                ) : (
-                  <>
-                    <QrCode className="mr-2 w-6 h-6" />
-                    Generate ID
-                  </>
-                )}
+                {loading ? <Loader2 className="mr-2 animate-spin" /> : <><QrCode className="mr-2 w-6 h-6" /> Generate ID</>}
               </Button>
             </CardFooter>
           </form>
