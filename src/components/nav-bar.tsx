@@ -3,13 +3,14 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ShieldAlert, ChevronLeft, LogOut, UserCircle, Siren, Loader2, Navigation, AlertTriangle } from 'lucide-react';
+import { ShieldAlert, ChevronLeft, LogOut, UserCircle, Siren, Loader2, Navigation, AlertTriangle, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth, useUser, useFirestore, initiateAnonymousSignIn, setDocumentNonBlocking } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { doc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
+import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -140,9 +141,13 @@ export function NavBar({ title, backHref }: { title: string, backHref?: string }
             </div>
           )}
           
-          <Button variant="outline" size="sm" asChild className="hidden md:flex font-bold">
-            <Link href="/">Menu</Link>
-          </Button>
+          <div className="hidden md:flex">
+            <InteractiveHoverButton 
+              text="Menu" 
+              className="h-9 w-24 text-[10px] font-bold uppercase tracking-widest"
+              onClick={() => router.push('/')}
+            />
+          </div>
           
           {user && (
             <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 text-muted-foreground hover:text-destructive h-9">
