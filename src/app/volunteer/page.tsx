@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Camera, Send, MapPin, Signal, WifiOff, AlertTriangle, CheckCircle2, Loader2, Sparkles, XCircle } from 'lucide-react';
+import { Camera, Send, MapPin, Signal, WifiOff, AlertTriangle, CheckCircle2, Loader2, Sparkles, XCircle, ImagePlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, setDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -24,6 +24,7 @@ export default function VolunteerApp() {
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const requestRef = useRef<number>(null);
   
   const db = useFirestore();
@@ -49,7 +50,7 @@ export default function VolunteerApp() {
       toast({
         variant: 'destructive',
         title: 'Camera Access Denied',
-        description: 'Please enable camera permissions in your browser settings to scan QR codes.',
+        description: 'Please enable camera permissions to scan QR IDs.',
       });
     }
   };
@@ -74,9 +75,9 @@ export default function VolunteerApp() {
             stopCamera();
             toast({
               title: "ID Captured",
-              description: `Guardian ID ${code.data} detected.`,
+              description: `Guardian ID ${code.data} verified.`,
             });
-            return; // Stop the loop
+            return;
           }
         }
       }
@@ -96,6 +97,42 @@ export default function VolunteerApp() {
     setIsScanning(false);
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          if (context) {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            context.drawImage(img, 0, 0);
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+            if (code) {
+              setScannedId(code.data);
+              toast({
+                title: "File Processed",
+                description: `ID ${code.data} extracted from image.`,
+              });
+            } else {
+              toast({
+                variant: "destructive",
+                title: "Scan Failed",
+                description: "No Guardian QR ID found in the uploaded image.",
+              });
+            }
+          }
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleRescue = () => {
     if (!scannedId || !user) {
       if (!user) toast({ title: "Auth Required", description: "You must be signed in.", variant: "destructive" });
@@ -109,7 +146,7 @@ export default function VolunteerApp() {
       id: alertId,
       childId: scannedId,
       volunteerId: user.uid,
-      locationLatitude: 28.6139,
+      locationLatitude: 28.6139, // Static simulation for prototype
       locationLongitude: 77.2090,
       scanTime: new Date().toISOString(),
       status: 'Scanned',
@@ -125,9 +162,7 @@ export default function VolunteerApp() {
       setIsSent(true);
       toast({
         title: "Rescue Alert Sent",
-        description: networkMode === 'Online' 
-          ? "Alert transmitted to central control via GSM." 
-          : "Alert transmitted via LoRa mesh network.",
+        description: "Alert transmitted to central control hub.",
       });
     }, 1500);
   };
@@ -143,24 +178,15 @@ export default function VolunteerApp() {
       <main className="container max-w-md mx-auto py-6 px-4 space-y-6">
         <div className="flex items-center justify-between bg-white p-3 rounded-lg border shadow-sm">
           <div className="flex items-center gap-2">
-            {networkMode === 'Online' ? (
-              <div className="relative">
-                <Signal className="w-5 h-5 text-green-500" />
-                <div className="absolute inset-0 bg-green-500 rounded-full animate-ping opacity-25" />
-              </div>
-            ) : (
-              <WifiOff className="w-5 h-5 text-primary" />
-            )}
-            <span className="font-bold text-sm">{networkMode} Mode</span>
+            <Signal className="w-5 h-5 text-green-500 animate-pulse" />
+            <span className="font-bold text-sm">Real-time Protocol</span>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => setNetworkMode(prev => prev === 'Online' ? 'Offline (LoRa)' : 'Online')} className="text-xs">
-            Switch Protocol
-          </Button>
+          <Badge variant="secondary" className="text-[10px] font-black uppercase">v2.5 Live</Badge>
         </div>
 
         {!isSent ? (
           <>
-            <Card className="border-2 border-primary bg-black aspect-square flex flex-col items-center justify-center relative overflow-hidden shadow-2xl rounded-2xl">
+            <Card className="border-4 border-primary bg-black aspect-square flex flex-col items-center justify-center relative overflow-hidden shadow-2xl rounded-2xl">
               <video 
                 ref={videoRef} 
                 className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${isScanning ? 'opacity-100' : 'opacity-0'}`} 
@@ -179,39 +205,47 @@ export default function VolunteerApp() {
               )}
 
               {!isScanning && (
-                <div className="text-center space-y-4 z-20">
-                  <div className="bg-white/10 p-6 rounded-full inline-block backdrop-blur-md border border-white/20 mb-2">
+                <div className="text-center space-y-6 z-20 px-6">
+                  <div className="bg-white/10 p-6 rounded-full inline-block backdrop-blur-md border border-white/20">
                     <Camera className="w-12 h-12 text-white" />
                   </div>
-                  <h3 className="font-bold text-white">Ready for Scanning</h3>
-                  <Button onClick={startCamera} className="h-12 px-10 text-lg font-bold shadow-lg bg-primary hover:bg-primary/90">
-                    Open Camera
-                  </Button>
+                  <div className="space-y-4">
+                    <Button onClick={startCamera} className="w-full h-14 text-lg font-black uppercase tracking-widest shadow-lg bg-primary hover:bg-primary/90">
+                      Live Camera
+                    </Button>
+                    <div className="flex items-center gap-3">
+                      <hr className="flex-1 border-white/20" />
+                      <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">or</span>
+                      <hr className="flex-1 border-white/20" />
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full h-12 border-2 border-white/20 text-white hover:bg-white/10 font-bold uppercase"
+                    >
+                      <ImagePlus className="mr-2 w-4 h-4" /> Scan from File
+                    </Button>
+                  </div>
                 </div>
               )}
-
-              {hasCameraPermission === false && (
-                <div className="absolute inset-0 bg-background flex items-center justify-center p-6 text-center z-30">
-                  <Alert variant="destructive">
-                    <XCircle className="h-4 w-4" />
-                    <AlertTitle>Hardware Access Denied</AlertTitle>
-                    <AlertDescription>
-                      The Guardian App requires camera access to process QR IDs.
-                    </AlertDescription>
-                  </Alert>
-                </div>
-              )}
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept="image/*" 
+                onChange={handleFileUpload} 
+              />
             </Card>
 
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1 flex items-center gap-2">
-                  <Sparkles className="w-3 h-3 text-primary" /> Captured Guardian ID
+                  <Sparkles className="w-3 h-3 text-primary" /> Active Guardian ID
                 </label>
                 <div className="relative">
                    <Input 
-                    className="h-16 text-3xl font-black text-center border-2 border-primary bg-white shadow-sm focus:ring-4 focus:ring-primary/10 transition-all uppercase" 
-                    placeholder="SCAN ID..." 
+                    className="h-16 text-3xl font-black text-center border-2 border-primary bg-white shadow-sm uppercase tracking-tighter" 
+                    placeholder="WAITING FOR SCAN..." 
                     value={scannedId}
                     readOnly
                   />
@@ -228,20 +262,10 @@ export default function VolunteerApp() {
                 </div>
               </div>
 
-              <div className="bg-teal-50 border border-teal-200 p-4 rounded-xl flex items-center gap-4">
-                <div className="bg-teal-500/10 p-2 rounded-lg">
-                  <MapPin className="w-6 h-6 text-teal-600" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-black text-teal-800 uppercase tracking-tighter">Verified Dispatch Point</p>
-                  <p className="text-sm font-bold text-teal-900">Stadium West Gate - Sector 4</p>
-                </div>
-              </div>
-
               <Button 
                 onClick={handleRescue}
                 disabled={!scannedId || isScanning || isDispatching} 
-                className={`w-full h-20 text-2xl font-black uppercase tracking-widest shadow-xl transition-all relative overflow-hidden ${!scannedId ? 'bg-slate-200 text-slate-400' : 'bg-primary hover:bg-primary/90'}`}
+                className={`w-full h-20 text-2xl font-black uppercase tracking-widest shadow-xl transition-all ${!scannedId ? 'bg-slate-200 text-slate-400' : 'bg-primary hover:bg-primary/90 animate-pulse'}`}
               >
                 {isDispatching ? (
                   <>
@@ -260,30 +284,27 @@ export default function VolunteerApp() {
         ) : (
           <div className="space-y-6 py-8">
             <Card className="border-4 border-teal-500 bg-white p-8 text-center space-y-8 shadow-2xl animate-success-pop">
-              <div className="relative inline-block mx-auto">
-                <CheckCircle2 className="w-24 h-24 text-teal-500" />
-                <div className="absolute inset-0 bg-teal-500 rounded-full animate-ping opacity-20" />
-              </div>
+              <CheckCircle2 className="w-24 h-24 text-teal-500 mx-auto" />
               <div className="space-y-3">
                 <h2 className="text-4xl font-black text-teal-950 uppercase italic tracking-tighter">Alert Sent</h2>
                 <p className="text-teal-700 font-bold text-lg leading-tight">
-                  ID <span className="text-teal-950 border-b-2 border-teal-950">{scannedId}</span> has been broadcasted.
+                  ID <span className="text-teal-950 border-b-2 border-teal-950">{scannedId}</span> broadcasted.
                 </p>
-                <div className="bg-teal-50 p-4 rounded-lg border border-teal-100 text-sm text-teal-800 font-medium">
-                  Protocol: Stay with the child. A supervisor is being dispatched to your location.
+                <div className="bg-teal-50 p-4 rounded-lg border border-teal-100 text-xs text-teal-800 font-black uppercase tracking-widest">
+                  Stay with child. Ops dispatching.
                 </div>
               </div>
               <Button onClick={() => { setScannedId(''); setIsSent(false); }} variant="outline" className="w-full h-12 border-2 border-teal-500 text-teal-900 font-bold hover:bg-teal-50">
-                Next Scan Session
+                Next Session
               </Button>
             </Card>
           </div>
         )}
       </main>
-
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 text-center shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
-        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Security Protocol Active | Guardian Node v2.2</p>
-      </div>
     </div>
   );
+}
+
+function Badge({ children, variant, className }: { children: React.ReactNode, variant?: string, className?: string }) {
+  return <div className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors ${className}`}>{children}</div>;
 }

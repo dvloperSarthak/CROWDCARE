@@ -1,12 +1,12 @@
 
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { NavBar } from '@/components/nav-bar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { QrCode, Printer, Search, Download, Loader2 } from 'lucide-react';
+import { QrCode, Printer, Search, Download, Loader2, UserCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
@@ -25,7 +25,7 @@ export default function ChildrenList() {
     c.id.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
-  const handlePrint = (childId: string, childName: string) => {
+  const handlePrint = (childId: string, childName: string, photo?: string) => {
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${childId}`;
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
@@ -35,25 +35,27 @@ export default function ChildrenList() {
         <head>
           <title>Print Guardian ID - ${childId}</title>
           <style>
-            body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-            .card { border: 10px solid #FF7733; padding: 40px; border-radius: 20px; text-align: center; max-width: 400px; }
-            h1 { font-size: 48px; margin: 20px 0 10px; color: #0f172a; }
-            h2 { font-size: 24px; margin: 0; color: #FF7733; }
-            img { width: 250px; height: 250px; }
-            .footer { margin-top: 20px; font-size: 12px; color: #64748b; font-weight: bold; text-transform: uppercase; letter-spacing: 2px; }
+            body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f8fafc; }
+            .card { border: 8px solid #FF7733; padding: 40px; border-radius: 24px; text-align: center; max-width: 400px; background: white; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); }
+            .photo { width: 120px; height: 120px; border-radius: 60px; object-fit: cover; border: 4px solid #FF7733; margin-bottom: 20px; }
+            h1 { font-size: 48px; margin: 10px 0; color: #0f172a; font-weight: 900; }
+            h2 { font-size: 24px; margin: 0; color: #FF7733; font-weight: 700; }
+            .qr { width: 180px; height: 180px; margin-top: 20px; }
+            .footer { margin-top: 30px; font-size: 10px; color: #64748b; font-weight: 900; text-transform: uppercase; letter-spacing: 3px; }
           </style>
         </head>
         <body>
           <div class="card">
-            <img src="${qrUrl}" alt="QR Code" />
-            <h1>${childId}</h1>
+            ${photo ? `<img src="${photo}" class="photo" />` : ''}
             <h2>${childName}</h2>
-            <div class="footer">Verified Guardian ID Node</div>
+            <h1>${childId}</h1>
+            <img src="${qrUrl}" class="qr" />
+            <div class="footer">Verified Guardian Protocol</div>
           </div>
           <script>
             window.onload = () => {
               window.print();
-              window.close();
+              setTimeout(() => window.close(), 500);
             };
           </script>
         </body>
@@ -94,8 +96,8 @@ export default function ChildrenList() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <Button className="w-full md:w-auto" variant="outline" asChild>
-            <a href="/admin/register">Register New ID</a>
+          <Button className="w-full md:w-auto font-bold uppercase tracking-widest" variant="outline" asChild>
+            <a href="/admin/register">New Registration</a>
           </Button>
         </div>
 
@@ -104,12 +106,13 @@ export default function ChildrenList() {
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-20 gap-2">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                <p className="text-muted-foreground">Syncing with Central Registry...</p>
+                <p className="text-muted-foreground">Syncing Central Registry...</p>
               </div>
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="bg-slate-50">
+                    <TableHead className="w-16">Photo</TableHead>
                     <TableHead>ID</TableHead>
                     <TableHead>Child Name</TableHead>
                     <TableHead>Parent</TableHead>
@@ -120,54 +123,74 @@ export default function ChildrenList() {
                 <TableBody>
                   {filtered.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
-                        No children found matching your search.
+                      <TableCell colSpan={6} className="text-center py-10 text-muted-foreground font-medium">
+                        No matches found in Registry.
                       </TableCell>
                     </TableRow>
                   ) : (
                     filtered.map((child) => (
                       <TableRow key={child.id}>
-                        <TableCell className="font-bold text-primary">{child.id}</TableCell>
-                        <TableCell className="font-medium">{child.childName}</TableCell>
-                        <TableCell>{child.parentName}</TableCell>
-                        <TableCell>{child.parentMobileNumber}</TableCell>
+                        <TableCell>
+                          {child.photoUrl ? (
+                            <div className="w-10 h-10 rounded-full border border-primary overflow-hidden relative">
+                              <Image src={child.photoUrl} alt={child.childName} fill className="object-cover" />
+                            </div>
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
+                              <UserCircle className="w-6 h-6 text-slate-400" />
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-bold text-primary tracking-tighter">{child.id}</TableCell>
+                        <TableCell className="font-bold">{child.childName}</TableCell>
+                        <TableCell className="text-sm font-medium">{child.parentName}</TableCell>
+                        <TableCell className="text-sm font-mono">{child.parentMobileNumber}</TableCell>
                         <TableCell className="text-right">
                           <Dialog>
                             <DialogTrigger asChild>
-                              <Button size="sm" variant="secondary" className="gap-2">
-                                <QrCode className="w-4 h-4" />
-                                View QR
+                              <Button size="sm" variant="secondary" className="gap-2 font-bold uppercase text-[10px]">
+                                <QrCode className="w-3 h-3" />
+                                Inspect
                               </Button>
                             </DialogTrigger>
                             <DialogContent className="sm:max-w-md">
                               <DialogHeader>
-                                <DialogTitle className="text-center">Guardian QR ID: {child.id}</DialogTitle>
+                                <DialogTitle className="text-center font-black uppercase">Guardian ID Profile: {child.id}</DialogTitle>
                               </DialogHeader>
                               <div className="flex flex-col items-center justify-center p-6 space-y-6">
-                                <div className="bg-white p-4 border-8 border-primary rounded-xl shadow-2xl">
-                                  <Image 
-                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${child.id}`}
-                                    alt={`QR Code for ${child.id}`}
-                                    width={200}
-                                    height={200}
-                                    className="rounded-sm"
-                                  />
+                                <div className="flex gap-4 items-center w-full justify-center">
+                                  {child.photoUrl && (
+                                    <div className="w-24 h-24 rounded-2xl border-4 border-primary overflow-hidden relative shadow-lg">
+                                      <Image src={child.photoUrl} alt={child.childName} fill className="object-cover" />
+                                    </div>
+                                  )}
+                                  <div className="bg-white p-4 border-8 border-primary rounded-xl shadow-2xl shrink-0">
+                                    <Image 
+                                      src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${child.id}`}
+                                      alt={`QR Code for ${child.id}`}
+                                      width={150}
+                                      height={150}
+                                      className="rounded-sm"
+                                    />
+                                  </div>
                                 </div>
-                                <div className="text-center">
-                                  <p className="font-black text-2xl text-slate-900">{child.id}</p>
-                                  <p className="font-bold text-lg text-primary">{child.childName}</p>
-                                  <p className="text-muted-foreground text-sm">Registered: {new Date(child.registrationDate).toLocaleDateString()}</p>
+                                <div className="text-center space-y-1">
+                                  <p className="font-black text-3xl text-slate-900 tracking-tighter">{child.id}</p>
+                                  <p className="font-black text-xl text-primary uppercase">{child.childName}</p>
+                                  <p className="text-muted-foreground text-[10px] font-black uppercase tracking-widest">
+                                    Registered: {new Date(child.registrationDate).toLocaleDateString()}
+                                  </p>
                                 </div>
                                 <div className="flex gap-4 w-full">
                                   <Button 
-                                    className="flex-1 gap-2 h-12 text-lg font-bold" 
-                                    onClick={() => handlePrint(child.id, child.childName)}
+                                    className="flex-1 gap-2 h-12 text-sm font-black uppercase" 
+                                    onClick={() => handlePrint(child.id, child.childName, child.photoUrl)}
                                   >
                                     <Printer className="w-4 h-4" /> Print
                                   </Button>
                                   <Button 
                                     variant="outline" 
-                                    className="flex-1 gap-2 h-12 text-lg font-bold"
+                                    className="flex-1 gap-2 h-12 text-sm font-black uppercase"
                                     onClick={() => handleExport(child.id)}
                                   >
                                     <Download className="w-4 h-4" /> Export

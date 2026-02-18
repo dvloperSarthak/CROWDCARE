@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { NavBar } from '@/components/nav-bar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,9 +9,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { UserPlus, CheckCircle2, Loader2, QrCode, ShieldAlert, Lock } from 'lucide-react';
+import { UserPlus, CheckCircle2, Loader2, QrCode, Lock, ImagePlus, X } from 'lucide-react';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
+import Image from 'next/image';
 
 export default function AdminRegister() {
   const { toast } = useToast();
@@ -19,6 +20,9 @@ export default function AdminRegister() {
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [generatedId, setGeneratedId] = useState('');
+  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const db = useFirestore();
   const { user, isUserLoading } = useUser();
 
@@ -41,6 +45,17 @@ export default function AdminRegister() {
     }
   }, [isAuthenticatedGuardian, isAdmin, isUserLoading, isLoadingRole, toast]);
 
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoBase64(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!isAuthenticatedGuardian || !isAdmin) return;
@@ -60,18 +75,18 @@ export default function AdminRegister() {
       registrationDate: new Date().toISOString(),
       registeredById: user.uid,
       isActive: true,
+      photoUrl: photoBase64, // Storing as base64 for real local-first functionality
     };
 
     const childRef = doc(db, 'children', id);
     setDocumentNonBlocking(childRef, newChild, { merge: true });
     
-    // Process sync with real-time feedback
     setTimeout(() => {
       setLoading(false);
       setIsSuccess(true);
       toast({
         title: "Registry Updated",
-        description: `Guardian ID ${id} is now encrypted and live.`,
+        description: `Guardian ID ${id} is now live with photo.`,
       });
 
       setTimeout(() => {
@@ -92,15 +107,12 @@ export default function AdminRegister() {
   if (!isAuthenticatedGuardian || !isAdmin) {
     return (
       <div className="min-h-screen bg-background">
-        <NavBar title="Unauthorized Access" backHref="/" />
+        <NavBar title="Restricted Area" backHref="/" />
         <main className="container max-w-md py-20 px-6 mx-auto text-center space-y-6">
           <div className="mx-auto w-20 h-20 bg-destructive/10 rounded-full flex items-center justify-center">
             <Lock className="w-10 h-10 text-destructive" />
           </div>
-          <div className="space-y-2">
-            <h2 className="text-2xl font-black text-slate-900 uppercase">Restricted Area</h2>
-            <p className="text-muted-foreground">This terminal requires an authenticated Guardian Admin session. Please sign in with your credentials.</p>
-          </div>
+          <h2 className="text-2xl font-black text-slate-900 uppercase">Guardian Access Only</h2>
           <Button className="w-full h-12 font-bold" onClick={() => router.push('/login')}>
             Guardian Login
           </Button>
@@ -120,7 +132,7 @@ export default function AdminRegister() {
             </div>
             <div className="space-y-2">
               <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">Registered</h2>
-              <p className="text-muted-foreground font-medium">Guardian ID generated and encrypted</p>
+              <p className="text-muted-foreground font-medium">Guardian ID generated successfully</p>
             </div>
             <div className="bg-slate-100 p-6 rounded-xl border-2 border-dashed border-slate-300">
                <p className="text-[10px] font-black text-slate-500 uppercase mb-1 tracking-widest">Active Guardian ID</p>
@@ -149,6 +161,45 @@ export default function AdminRegister() {
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-6">
+              {/* Photo Upload Section */}
+              <div className="flex flex-col items-center gap-4 py-4">
+                <div 
+                  className="w-32 h-32 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center relative overflow-hidden group cursor-pointer"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {photoBase64 ? (
+                    <>
+                      <Image src={photoBase64} alt="Preview" fill className="object-cover" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <ImagePlus className="w-8 h-8 text-white" />
+                      </div>
+                      <Button 
+                        type="button" 
+                        size="icon" 
+                        variant="destructive" 
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full z-10"
+                        onClick={(e) => { e.stopPropagation(); setPhotoBase64(null); }}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 text-slate-400">
+                      <ImagePlus className="w-8 h-8" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Add Photo</span>
+                    </div>
+                  )}
+                </div>
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  className="hidden" 
+                  accept="image/*" 
+                  onChange={handlePhotoUpload} 
+                />
+                <p className="text-[10px] text-muted-foreground font-bold uppercase">Official Identification Photo</p>
+              </div>
+
               <div className="grid gap-2">
                 <Label htmlFor="name" className="text-xs uppercase font-black tracking-widest">Child's Full Name</Label>
                 <Input id="name" name="name" placeholder="Enter child's name" className="h-12 text-lg font-bold" required />
