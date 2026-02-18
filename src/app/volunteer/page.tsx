@@ -56,6 +56,11 @@ export default function VolunteerApp() {
 
   // High-Precision Real-time GPS Tracking
   useEffect(() => {
+    if (!navigator.geolocation) {
+      setGpsAccuracy('none');
+      return;
+    }
+
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const newCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
@@ -75,13 +80,21 @@ export default function VolunteerApp() {
         }
       },
       (err) => {
-        console.error("GPS Lock Failed", err);
         setGpsAccuracy('none');
+        const message = err.code === 1 
+          ? "GPS Permission Denied. Please enable location in browser settings." 
+          : "Satellite signal weak. Try moving to an open area.";
+        
+        toast({
+          variant: "destructive",
+          title: "Positioning Offline",
+          description: message,
+        });
       },
       { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
     );
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [activeAlertId, db]);
+  }, [activeAlertId, db, toast]);
 
   // Real-time lookup for scanned child
   const childRef = useMemoFirebase(() => (scannedId && user) ? doc(db, 'children', scannedId) : null, [db, scannedId, user]);

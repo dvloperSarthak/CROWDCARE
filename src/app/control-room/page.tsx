@@ -92,7 +92,11 @@ export default function ControlRoom() {
         updateDocumentNonBlocking(alertRef, { isDuplicate: true, notes: result.reason, statusUpdateTime: new Date().toISOString() });
       }
     } catch (err) {
-      console.error("Duplicate check failed", err);
+      toast({
+        variant: "destructive",
+        title: "Intelligence Check Failed",
+        description: "AI duplicate detection encountered a connectivity error.",
+      });
     }
   };
 
