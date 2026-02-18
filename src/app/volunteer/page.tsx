@@ -3,12 +3,12 @@
 import { useState } from 'react';
 import { NavBar } from '@/components/nav-bar';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Camera, Send, MapPin, Signal, WifiOff, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { DataStore } from '@/lib/store';
-import { RescueAlert } from '@/lib/types';
+import { useFirestore, useUser, setDocumentNonBlocking } from '@/firebase';
+import { doc } from 'firebase/firestore';
 
 export default function VolunteerApp() {
   const { toast } = useToast();
@@ -16,10 +16,13 @@ export default function VolunteerApp() {
   const [scannedId, setScannedId] = useState('');
   const [networkMode, setNetworkMode] = useState<'Online' | 'Offline (LoRa)'>('Online');
   const [isSent, setIsSent] = useState(false);
+  const db = useFirestore();
+  const { user } = useUser();
 
   const simulateScan = () => {
     setIsScanning(true);
     setTimeout(() => {
+      // Mock some real IDs that might exist in the registry
       const ids = ['C2045', 'C2046'];
       setScannedId(ids[Math.floor(Math.random() * ids.length)]);
       setIsScanning(false);
@@ -31,27 +34,34 @@ export default function VolunteerApp() {
   };
 
   const handleRescue = () => {
-    if (!scannedId) return;
+    if (!scannedId || !user) {
+      if (!user) toast({ title: "Auth Required", description: "You must be signed in.", variant: "destructive" });
+      return;
+    }
 
-    const alert: RescueAlert = {
-      alertId: `A-${Date.now()}`,
+    const alertId = `A-${Date.now()}`;
+    const newAlert = {
+      id: alertId,
       childId: scannedId,
-      location: "28.6139, 77.2090", // Simulated location
-      timestamp: new Date().toISOString(),
+      volunteerId: user.uid,
+      locationLatitude: 28.6139,
+      locationLongitude: 77.2090,
+      scanTime: new Date().toISOString(),
       status: 'Scanned',
+      statusUpdateTime: new Date().toISOString(),
+      isDuplicate: false,
     };
 
-    // Simulate sending
-    setTimeout(() => {
-      DataStore.addAlert(alert);
-      setIsSent(true);
-      toast({
-        title: "Rescue Alert Sent",
-        description: networkMode === 'Online' 
-          ? "Alert transmitted to central control via GSM." 
-          : "Alert transmitted via LoRa mesh network.",
-      });
-    }, 1000);
+    const alertRef = doc(db, 'rescueEvents', alertId);
+    setDocumentNonBlocking(alertRef, newAlert, { merge: true });
+
+    setIsSent(true);
+    toast({
+      title: "Rescue Alert Sent",
+      description: networkMode === 'Online' 
+        ? "Alert transmitted to central control via GSM." 
+        : "Alert transmitted via LoRa mesh network.",
+    });
   };
 
   return (
@@ -133,7 +143,7 @@ export default function VolunteerApp() {
 
       {/* Footer Instructions */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 text-center">
-        <p className="text-xs font-bold text-muted-foreground uppercase">Volunteer ID: VOL-882 | Sector 4 Marshall</p>
+        <p className="text-xs font-bold text-muted-foreground uppercase">Volunteer Status: Authenticated | Sector 4 Marshall</p>
       </div>
     </div>
   );

@@ -1,55 +1,59 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { NavBar } from '@/components/nav-bar';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { DataStore } from '@/lib/store';
-import { RescueAlert, Child } from '@/lib/types';
-import { AlertCircle, Map, Bell, Check, User, Phone, ShieldAlert, Clock } from 'lucide-react';
+import { AlertCircle, Map, Bell, Check, User, Phone, ShieldAlert, Clock, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { detectDuplicateRescueAlert } from '@/ai/flows/duplicate-rescue-detection-flow';
+import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
 
 export default function ControlRoom() {
   const { toast } = useToast();
-  const [alerts, setAlerts] = useState<RescueAlert[]>([]);
-  const [selectedAlert, setSelectedAlert] = useState<RescueAlert | null>(null);
-  const [relatedChild, setRelatedChild] = useState<Child | null>(null);
+  const db = useFirestore();
+  
+  // Real-time feeds
+  const alertsRef = useMemoFirebase(() => collection(db, 'rescueEvents'), [db]);
+  const { data: alerts, isLoading: loadingAlerts } = useCollection(alertsRef);
+  
+  const childrenRef = useMemoFirebase(() => collection(db, 'children'), [db]);
+  const { data: children } = useCollection(childrenRef);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setAlerts([...DataStore.getAlerts()]);
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
+  const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
 
-  const handleSelectAlert = (alert: RescueAlert) => {
-    setSelectedAlert(alert);
-    setRelatedChild(DataStore.getChildById(alert.childId) || null);
+  const selectedAlert = alerts?.find(a => a.id === selectedAlertId) || null;
+  const relatedChild = children?.find(c => c.id === selectedAlert?.childId) || null;
+
+  const handleSelectAlert = (alert: any) => {
+    setSelectedAlertId(alert.id);
     
-    // Auto-check for duplicates if not already checked
-    if (alert.isDuplicate === undefined) {
+    // Auto-check for duplicates if not already checked or if specifically requested
+    if (alert.isDuplicate === undefined || alert.isDuplicate === false) {
       checkDuplicate(alert);
     }
   };
 
-  const checkDuplicate = async (newAlert: RescueAlert) => {
+  const checkDuplicate = async (newAlert: any) => {
     try {
-      const recentAlerts = alerts
-        .filter(a => a.alertId !== newAlert.alertId)
+      const recentAlerts = (alerts || [])
+        .filter(a => a.id !== newAlert.id)
         .map(a => ({
-          alertId: a.alertId,
+          alertId: a.id,
           childId: a.childId,
-          location: a.location,
-          timestamp: a.timestamp
+          location: `${a.locationLatitude}, ${a.locationLongitude}`,
+          timestamp: a.scanTime
         }));
+
+      if (recentAlerts.length === 0) return;
 
       const result = await detectDuplicateRescueAlert({
         childId: newAlert.childId,
-        location: newAlert.location,
-        timestamp: newAlert.timestamp,
+        location: `${newAlert.locationLatitude}, ${newAlert.locationLongitude}`,
+        timestamp: newAlert.scanTime,
         recentAlerts
       });
 
@@ -59,10 +63,13 @@ export default function ControlRoom() {
           description: `Duplicate detected: ${result.reason}`,
           variant: "destructive"
         });
-        // Update local state and store
-        setAlerts(prev => prev.map(a => a.alertId === newAlert.alertId ? { ...a, isDuplicate: true, duplicateReason: result.reason } : a));
-      } else {
-        setAlerts(prev => prev.map(a => a.alertId === newAlert.alertId ? { ...a, isDuplicate: false } : a));
+        
+        const alertRef = doc(db, 'rescueEvents', newAlert.id);
+        updateDocumentNonBlocking(alertRef, { 
+          isDuplicate: true, 
+          notes: result.reason,
+          statusUpdateTime: new Date().toISOString() 
+        });
       }
     } catch (err) {
       console.error("Duplicate check failed", err);
@@ -70,22 +77,31 @@ export default function ControlRoom() {
   };
 
   const notifyParent = (alertId: string) => {
-    DataStore.updateAlertStatus(alertId, 'Parent Notified');
+    const alertRef = doc(db, 'rescueEvents', alertId);
+    updateDocumentNonBlocking(alertRef, { 
+      status: 'Parent Notified',
+      statusUpdateTime: new Date().toISOString()
+    });
+    
     toast({
       title: "Notification Sent",
       description: "SMS alert and Push notification sent to parent's device.",
     });
-    setAlerts([...DataStore.getAlerts()]);
   };
 
   const resolveRescue = (alertId: string) => {
-    DataStore.updateAlertStatus(alertId, 'Child Reunited');
+    const alertRef = doc(db, 'rescueEvents', alertId);
+    updateDocumentNonBlocking(alertRef, { 
+      status: 'Child Reunited',
+      resolvedTime: new Date().toISOString(),
+      statusUpdateTime: new Date().toISOString()
+    });
+    
     toast({
       title: "Rescue Resolved",
       description: "Status updated to Child Reunited.",
     });
-    setAlerts([...DataStore.getAlerts()]);
-    setSelectedAlert(null);
+    setSelectedAlertId(null);
   };
 
   return (
@@ -99,19 +115,19 @@ export default function ControlRoom() {
           <Card className="bg-primary/5 border-primary/20">
             <CardContent className="p-4 flex items-center gap-4">
               <div className="bg-primary p-2 rounded-lg"><AlertCircle className="text-white h-6 w-6" /></div>
-              <div><p className="text-xs font-bold uppercase text-muted-foreground">Active Alerts</p><p className="text-2xl font-black">{alerts.filter(a => a.status !== 'Child Reunited').length}</p></div>
+              <div><p className="text-xs font-bold uppercase text-muted-foreground">Active Alerts</p><p className="text-2xl font-black">{alerts?.filter(a => a.status !== 'Child Reunited').length || 0}</p></div>
             </CardContent>
           </Card>
           <Card className="bg-teal-50 border-teal-200">
             <CardContent className="p-4 flex items-center gap-4">
               <div className="bg-teal-500 p-2 rounded-lg"><Check className="text-white h-6 w-6" /></div>
-              <div><p className="text-xs font-bold uppercase text-muted-foreground">Reunited</p><p className="text-2xl font-black">{alerts.filter(a => a.status === 'Child Reunited').length}</p></div>
+              <div><p className="text-xs font-bold uppercase text-muted-foreground">Reunited</p><p className="text-2xl font-black">{alerts?.filter(a => a.status === 'Child Reunited').length || 0}</p></div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-4 flex items-center gap-4">
               <div className="bg-slate-200 p-2 rounded-lg"><User className="text-slate-700 h-6 w-6" /></div>
-              <div><p className="text-xs font-bold uppercase text-muted-foreground">Registered</p><p className="text-2xl font-black">{DataStore.getChildren().length}</p></div>
+              <div><p className="text-xs font-bold uppercase text-muted-foreground">Registered</p><p className="text-2xl font-black">{children?.length || 0}</p></div>
             </CardContent>
           </Card>
           <Card>
@@ -137,49 +153,56 @@ export default function ControlRoom() {
               </div>
             </CardHeader>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-24">ID</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead>Time</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>AI Tag</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {alerts.length === 0 ? (
+              {loadingAlerts ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-2">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  <p className="text-muted-foreground">Loading rescue data...</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">No active rescue alerts currently.</TableCell>
+                      <TableHead className="w-24">ID</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Time</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>AI Tag</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
                     </TableRow>
-                  ) : (
-                    alerts.map((alert) => (
-                      <TableRow 
-                        key={alert.alertId} 
-                        className={`cursor-pointer transition-colors ${selectedAlert?.alertId === alert.alertId ? 'bg-primary/10' : ''}`}
-                        onClick={() => handleSelectAlert(alert)}
-                      >
-                        <TableCell className="font-bold">{alert.childId}</TableCell>
-                        <TableCell className="flex items-center gap-1"><Map className="w-3 h-3 text-muted-foreground" /> {alert.location}</TableCell>
-                        <TableCell>{new Date(alert.timestamp).toLocaleTimeString()}</TableCell>
-                        <TableCell>
-                          <Badge variant={alert.status === 'Child Reunited' ? 'secondary' : 'default'} className={alert.status === 'Scanned' ? 'rescue-pulse bg-primary' : ''}>
-                            {alert.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {alert.isDuplicate === true && <Badge variant="destructive" className="bg-red-500 text-[10px]">POTENTIAL DUPLICATE</Badge>}
-                          {alert.isDuplicate === false && <Badge variant="outline" className="text-teal-600 border-teal-600 text-[10px]">VERIFIED UNIQUE</Badge>}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleSelectAlert(alert); }}>View Details</Button>
-                        </TableCell>
+                  </TableHeader>
+                  <TableBody>
+                    {!alerts || alerts.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">No active rescue alerts currently.</TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : (
+                      alerts.map((alert) => (
+                        <TableRow 
+                          key={alert.id} 
+                          className={`cursor-pointer transition-colors ${selectedAlertId === alert.id ? 'bg-primary/10' : ''}`}
+                          onClick={() => handleSelectAlert(alert)}
+                        >
+                          <TableCell className="font-bold">{alert.childId}</TableCell>
+                          <TableCell className="flex items-center gap-1"><Map className="w-3 h-3 text-muted-foreground" /> {alert.locationLatitude}, {alert.locationLongitude}</TableCell>
+                          <TableCell>{new Date(alert.scanTime).toLocaleTimeString()}</TableCell>
+                          <TableCell>
+                            <Badge variant={alert.status === 'Child Reunited' ? 'secondary' : 'default'} className={alert.status === 'Scanned' ? 'rescue-pulse bg-primary' : ''}>
+                              {alert.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {alert.isDuplicate === true && <Badge variant="destructive" className="bg-red-500 text-[10px]">POTENTIAL DUPLICATE</Badge>}
+                            {alert.isDuplicate === false && <Badge variant="outline" className="text-teal-600 border-teal-600 text-[10px]">VERIFIED UNIQUE</Badge>}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleSelectAlert(alert); }}>View Details</Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -205,21 +228,21 @@ export default function ControlRoom() {
                       <Badge className="bg-primary h-8 px-4 text-sm uppercase">{selectedAlert.status}</Badge>
                     </div>
 
-                    {alert.isDuplicate && (
+                    {selectedAlert.isDuplicate && (
                       <div className="bg-red-50 border border-red-200 p-3 rounded-lg flex gap-2">
                         <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
-                        <p className="text-xs text-red-800 font-medium">AI Flagged Duplicate: {selectedAlert.duplicateReason}</p>
+                        <p className="text-xs text-red-800 font-medium">AI Flagged Duplicate: {selectedAlert.notes}</p>
                       </div>
                     )}
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="bg-slate-50 p-3 rounded-lg border">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase">Child Name</p>
-                        <p className="font-bold truncate">{relatedChild?.name || 'Loading...'}</p>
+                        <p className="font-bold truncate">{relatedChild?.childName || 'Not Found'}</p>
                       </div>
                       <div className="bg-slate-50 p-3 rounded-lg border">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase">Registered At</p>
-                        <p className="font-bold truncate">{relatedChild ? new Date(relatedChild.registeredAt).toLocaleDateString() : 'N/A'}</p>
+                        <p className="font-bold truncate">{relatedChild ? new Date(relatedChild.registrationDate).toLocaleDateString() : 'N/A'}</p>
                       </div>
                     </div>
 
@@ -230,7 +253,7 @@ export default function ControlRoom() {
                       </div>
                       <div className="space-y-1">
                         <p className="text-sm font-black text-teal-900">{relatedChild?.parentName || 'Unknown'}</p>
-                        <p className="text-lg font-bold text-teal-700">{relatedChild?.parentPhone || 'No contact info'}</p>
+                        <p className="text-lg font-bold text-teal-700">{relatedChild?.parentMobileNumber || 'No contact info'}</p>
                       </div>
                     </div>
                   </div>
@@ -239,7 +262,7 @@ export default function ControlRoom() {
                     <Button 
                       className="w-full h-12 text-lg bg-teal-600 hover:bg-teal-700"
                       disabled={selectedAlert.status !== 'Scanned'}
-                      onClick={() => notifyParent(selectedAlert.alertId)}
+                      onClick={() => notifyParent(selectedAlert.id)}
                     >
                       <Bell className="mr-2 w-5 h-5" /> Notify Parent
                     </Button>
@@ -247,7 +270,7 @@ export default function ControlRoom() {
                       className="w-full h-12 text-lg"
                       variant="outline"
                       disabled={selectedAlert.status !== 'Parent Notified'}
-                      onClick={() => resolveRescue(selectedAlert.alertId)}
+                      onClick={() => resolveRescue(selectedAlert.id)}
                     >
                       <Check className="mr-2 w-5 h-5" /> Resolve & Close Alert
                     </Button>

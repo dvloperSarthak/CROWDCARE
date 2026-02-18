@@ -1,8 +1,21 @@
+"use client";
+
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { ShieldAlert, UserCog, Camera, LayoutDashboard, Fingerprint } from 'lucide-react';
+import { useAuth, initiateAnonymousSignIn } from '@/firebase';
 
 export default function Home() {
+  const auth = useAuth();
+
+  useEffect(() => {
+    // Ensure the user is signed in anonymously so they can interact with Firestore
+    if (auth) {
+      initiateAnonymousSignIn(auth);
+    }
+  }, [auth]);
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 space-y-12">
       <div className="text-center space-y-4 max-w-2xl">

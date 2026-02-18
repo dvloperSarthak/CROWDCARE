@@ -6,18 +6,30 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
-import { DataStore } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { QrCode, UserPlus } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
+import { useFirestore, useUser, setDocumentNonBlocking } from '@/firebase';
+import { doc } from 'firebase/firestore';
 
 export default function AdminRegister() {
   const { toast } = useToast();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const db = useFirestore();
+  const { user } = useUser();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!user) {
+      toast({
+        variant: "destructive",
+        title: "Not Authenticated",
+        description: "You must be signed in to register a child.",
+      });
+      return;
+    }
+
     setLoading(true);
     
     const formData = new FormData(e.currentTarget);
@@ -25,14 +37,17 @@ export default function AdminRegister() {
     
     const newChild = {
       id,
-      name: formData.get('name') as string,
+      childName: formData.get('name') as string,
       parentName: formData.get('parentName') as string,
-      parentPhone: formData.get('parentPhone') as string,
-      emergencyContact: formData.get('emergencyContact') as string,
-      registeredAt: new Date().toISOString(),
+      parentMobileNumber: formData.get('parentPhone') as string,
+      emergencyContactNumber: formData.get('emergencyContact') as string,
+      registrationDate: new Date().toISOString(),
+      registeredById: user.uid,
+      isActive: true,
     };
 
-    DataStore.addChild(newChild);
+    const childRef = doc(db, 'children', id);
+    setDocumentNonBlocking(childRef, newChild, { merge: true });
     
     toast({
       title: "Registration Successful",
