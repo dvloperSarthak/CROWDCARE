@@ -46,13 +46,10 @@ export default function ChildrenList() {
     c.id.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
-  async function uploadToGuardianNet(base64: string): Promise<string | null> {
+  async function uploadToGuardianNet(file: File): Promise<string | null> {
     try {
-      const res = await fetch(base64);
-      const blob = await res.blob();
-      
       const formData = new FormData();
-      formData.append('image', blob, 'guardian-id-photo-update.jpg');
+      formData.append('image', file, `guardian-id-${Date.now()}.jpg`);
       
       const response = await fetch('https://imgup.infinityfreeapp.com/wp-json/imgup/v1/upload', {
         method: 'POST',
@@ -65,7 +62,7 @@ export default function ChildrenList() {
       if (!response.ok) return null;
       
       const result = await response.json();
-      return result.url || result.data?.url || null;
+      return result.url || result.data?.url || result.link || null;
     } catch (error) {
       return null;
     }
@@ -77,28 +74,23 @@ export default function ChildrenList() {
 
     setUploadingId(childId);
     
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64 = reader.result as string;
-      const remoteUrl = await uploadToGuardianNet(base64);
-      
-      if (remoteUrl) {
-        const childDocRef = doc(db, 'children', childId);
-        updateDocumentNonBlocking(childDocRef, { photoUrl: remoteUrl });
-        toast({
-          title: "Registry Updated",
-          description: "Identification photo has been synced with GuardianNet.",
-        });
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Upload Failed",
-          description: "Secure storage node rejected the transmission.",
-        });
-      }
-      setUploadingId(null);
-    };
-    reader.readAsDataURL(file);
+    const remoteUrl = await uploadToGuardianNet(file);
+    
+    if (remoteUrl) {
+      const childDocRef = doc(db, 'children', childId);
+      updateDocumentNonBlocking(childDocRef, { photoUrl: remoteUrl });
+      toast({
+        title: "Registry Updated",
+        description: "Identification photo has been synced with GuardianNet.",
+      });
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Upload Failed",
+        description: "Secure storage node rejected the transmission.",
+      });
+    }
+    setUploadingId(null);
   };
 
   const handlePrint = (childId: string, childName: string, photo?: string) => {

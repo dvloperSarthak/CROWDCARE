@@ -20,7 +20,8 @@ export default function AdminRegister() {
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [generatedId, setGeneratedId] = useState('');
-  const [photoBase64, setPhotoBase64] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const db = useFirestore();
@@ -45,24 +46,19 @@ export default function AdminRegister() {
     }
   }, [isAuthenticatedGuardian, isAdmin, isUserLoading, loadingAdmin, toast]);
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoBase64(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      setSelectedFile(file);
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
     }
   };
 
-  async function uploadToGuardianNet(base64: string): Promise<string | null> {
+  async function uploadToGuardianNet(file: File): Promise<string | null> {
     try {
-      const res = await fetch(base64);
-      const blob = await res.blob();
-      
       const formData = new FormData();
-      formData.append('image', blob, 'guardian-id-photo.jpg');
+      formData.append('image', file, `guardian-registry-${Date.now()}.jpg`);
       
       const response = await fetch('https://imgup.infinityfreeapp.com/wp-json/imgup/v1/upload', {
         method: 'POST',
@@ -75,7 +71,7 @@ export default function AdminRegister() {
       if (!response.ok) return null;
       
       const result = await response.json();
-      return result.url || result.data?.url || null;
+      return result.url || result.data?.url || result.link || null;
     } catch (error) {
       return null;
     }
@@ -91,12 +87,9 @@ export default function AdminRegister() {
     const id = `C${Math.floor(Math.random() * 9000) + 1000}`;
     setGeneratedId(id);
 
-    let finalPhotoUrl = photoBase64;
-    if (photoBase64) {
-      const remoteUrl = await uploadToGuardianNet(photoBase64);
-      if (remoteUrl) {
-        finalPhotoUrl = remoteUrl;
-      }
+    let finalPhotoUrl = null;
+    if (selectedFile) {
+      finalPhotoUrl = await uploadToGuardianNet(selectedFile);
     }
     
     const newChild = {
@@ -199,9 +192,9 @@ export default function AdminRegister() {
                   className="w-32 h-32 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center relative overflow-hidden group cursor-pointer"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  {photoBase64 ? (
+                  {previewUrl ? (
                     <>
-                      <Image src={photoBase64} alt="Preview" fill className="object-cover" />
+                      <Image src={previewUrl} alt="Preview" fill className="object-cover" />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <CloudUpload className="w-8 h-8 text-white" />
                       </div>
@@ -210,7 +203,11 @@ export default function AdminRegister() {
                         size="icon" 
                         variant="destructive" 
                         className="absolute top-1 right-1 w-6 h-6 rounded-full z-10"
-                        onClick={(e) => { e.stopPropagation(); setPhotoBase64(null); }}
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          setSelectedFile(null);
+                          setPreviewUrl(null); 
+                        }}
                       >
                         <X className="w-3 h-3" />
                       </Button>
@@ -227,7 +224,7 @@ export default function AdminRegister() {
                   ref={fileInputRef} 
                   className="hidden" 
                   accept="image/*" 
-                  onChange={handlePhotoUpload} 
+                  onChange={handleFileChange} 
                 />
                 <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest flex items-center gap-2">
                   <CloudUpload className="w-3 h-3" /> Official Secure Storage
