@@ -1,12 +1,13 @@
 
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { NavBar } from '@/components/nav-bar';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -38,11 +39,13 @@ import {
   CloudUpload,
   X,
   Clock,
-  CircleStop
+  CircleStop,
+  History,
+  Trophy
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking, updateDocumentNonBlocking, useAuth, initiateAnonymousSignIn } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking, updateDocumentNonBlocking, useAuth, initiateAnonymousSignIn, useCollection } from '@/firebase';
+import { doc, collection, query, where, orderBy } from 'firebase/firestore';
 import jsQR from 'jsqr';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
@@ -77,13 +80,20 @@ export default function VolunteerApp() {
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
 
+  // Fetch past missions for this volunteer
+  const missionsRef = useMemoFirebase(() => {
+    if (!user || !db) return null;
+    return query(collection(db, 'rescueEvents'), where('volunteerId', '==', user.uid));
+  }, [db, user]);
+  const { data: pastMissions } = useCollection(missionsRef);
+
   // Automated Reminder Effect: Ask every 30 minutes
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isBroadcasting && isSent) {
       interval = setInterval(() => {
         setShowReminder(true);
-      }, 30 * 60 * 1000); // 30 minutes
+      }, 30 * 60 * 1000); 
     }
     return () => {
       if (interval) clearInterval(interval);
@@ -215,11 +225,7 @@ export default function VolunteerApp() {
             stopCamera();
             toast({ title: "ID DECODED", description: `Guardian ID ${code.data} verified from source.` });
           } else {
-            toast({ 
-              variant: 'destructive', 
-              title: "Scan Failure", 
-              description: "No Guardian QR detected. Ensure image is clear." 
-            });
+            toast({ variant: 'destructive', title: "Scan Failure", description: "No Guardian QR detected." });
           }
         }
       };
@@ -241,12 +247,10 @@ export default function VolunteerApp() {
     try {
       const formData = new FormData();
       formData.append('image', file);
-      
       const response = await fetch('https://api.imgbb.com/1/upload?key=6874d5a39ecc03ce08ca12b3f4f00fd8', {
         method: 'POST',
         body: formData
       });
-
       if (!response.ok) return null;
       const result = await response.json();
       return result.data?.url || null;
@@ -286,7 +290,7 @@ export default function VolunteerApp() {
       setActiveAlertId(alertId);
       setIsDispatching(false);
       setIsSent(true);
-      toast({ title: "SITREP LIVE", description: "Broadcasting high-precision location stream via ImgBB." });
+      toast({ title: "SITREP LIVE", description: "Broadcasting situational telemetry." });
     }, 1200);
   };
 
@@ -301,29 +305,28 @@ export default function VolunteerApp() {
     toast({ title: "MISSION SECURED", description: "Telemetry broadcast terminated." });
   };
 
-  const cancelCurrentScan = () => {
-    setScannedId('');
-    setStatusFile(null);
-    setStatusPreview(null);
-    toast({ description: "Scan cancelled. System reset." });
-  };
-
   return (
     <div className="min-h-screen bg-background pb-20">
       <NavBar title="Guardian Field Terminal" backHref="/" />
       
       <main className="container max-w-md mx-auto py-6 px-4 space-y-6">
-        <div className="flex items-center justify-between bg-slate-900 text-white p-3 rounded-xl border-2 border-primary/20 shadow-xl">
-          <div className="flex items-center gap-2">
-            <Radio className={cn("w-5 h-5", isBroadcasting ? "text-primary animate-pulse" : "text-slate-500")} />
-            <span className="font-black text-[10px] uppercase tracking-widest">
-              {isBroadcasting ? "Continuous Broadcast Live" : "Tactical Network Ready"}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 bg-black/40 px-2 py-1 rounded-md">
-             <LocateFixed className={cn("w-3 h-3", gpsAccuracy === 'high' ? "text-teal-400" : "text-yellow-400")} />
-             <span className="text-[9px] font-black uppercase">Signal: {gpsAccuracy}</span>
-          </div>
+        
+        {/* Personalized Stats */}
+        <div className="grid grid-cols-2 gap-3">
+          <Card className="bg-slate-900 text-white p-3 border-none shadow-lg rounded-2xl">
+            <div className="flex items-center gap-2 mb-1">
+              <Trophy className="w-3 h-3 text-primary" />
+              <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Total Missions</span>
+            </div>
+            <p className="text-2xl font-black">{pastMissions?.length || 0}</p>
+          </Card>
+          <Card className="bg-white p-3 border-2 border-slate-900 shadow-md rounded-2xl">
+            <div className="flex items-center gap-2 mb-1">
+              <Wifi className="w-3 h-3 text-primary animate-pulse" />
+              <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">Network Link</span>
+            </div>
+            <p className="text-xs font-black uppercase">{gpsAccuracy} Accuracy</p>
+          </Card>
         </div>
 
         {!isSent ? (
@@ -336,45 +339,20 @@ export default function VolunteerApp() {
                 <div className="absolute inset-0 pointer-events-none z-10">
                   <div className="w-full h-1 bg-primary shadow-[0_0_20px_rgba(255,119,51,1)] animate-scan-line absolute" />
                   <div className="absolute inset-0 border-[60px] border-black/50" />
-                  <Button 
-                    variant="destructive" 
-                    size="sm" 
-                    onClick={stopCamera} 
-                    className="absolute bottom-6 left-1/2 -translate-x-1/2 font-black uppercase tracking-widest text-[10px] shadow-lg"
-                  >
-                    Abort Scanner
-                  </Button>
+                  <Button variant="destructive" size="sm" onClick={stopCamera} className="absolute bottom-6 left-1/2 -translate-x-1/2 font-black uppercase text-[10px]">Abort Scanner</Button>
                 </div>
               )}
 
               {!isScanning && (
                 <div className="text-center space-y-4 z-20 px-6 w-full max-w-xs">
-                  <div className="bg-white/10 p-8 rounded-full inline-block backdrop-blur-xl border-2 border-white/20 shadow-2xl mb-2">
+                  <div className="bg-white/10 p-8 rounded-full inline-block backdrop-blur-xl border-2 border-white/20 shadow-2xl">
                     <Camera className="w-12 h-12 text-white" />
                   </div>
-                  <div className="flex flex-col gap-3">
-                    <Button onClick={startCamera} className="w-full h-16 text-lg font-black uppercase tracking-widest shadow-2xl bg-primary hover:bg-primary/90 rounded-2xl">
-                      Start Scanner
-                    </Button>
-                    <div className="relative">
-                      <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-white/20" /></div>
-                      <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-black px-2 text-white/40">Manual Link</span></div>
-                    </div>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full h-12 text-xs font-black uppercase tracking-widest bg-white/5 border-white/20 text-white hover:bg-white/10 rounded-xl gap-2"
-                    >
-                      <ImagePlus className="w-4 h-4" /> Upload Guardian ID
-                    </Button>
-                    <input 
-                      type="file" 
-                      ref={fileInputRef} 
-                      className="hidden" 
-                      accept="image/*" 
-                      onChange={handleFileUpload} 
-                    />
-                  </div>
+                  <Button onClick={startCamera} className="w-full h-16 text-lg font-black uppercase tracking-widest bg-primary rounded-2xl">Start Scanner</Button>
+                  <Button variant="outline" onClick={() => fileInputRef.current?.click()} className="w-full h-12 text-xs font-black uppercase bg-white/5 border-white/20 text-white rounded-xl gap-2">
+                    <ImagePlus className="w-4 h-4" /> Manual Link
+                  </Button>
+                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
                 </div>
               )}
             </Card>
@@ -383,7 +361,7 @@ export default function VolunteerApp() {
               <div className="animate-entrance space-y-4">
                 <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-2xl space-y-4 border-b-8 border-primary relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-2">
-                    <Button size="icon" variant="ghost" className="text-white/40 hover:text-white" onClick={cancelCurrentScan}>
+                    <Button size="icon" variant="ghost" className="text-white/40 hover:text-white" onClick={() => setScannedId('')}>
                       <X className="w-5 h-5" />
                     </Button>
                   </div>
@@ -392,25 +370,13 @@ export default function VolunteerApp() {
                       {isLoadingChild ? <div className="w-full h-full flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div> : childData?.photoUrl ? <Image src={childData.photoUrl} alt="Target" fill className="object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle className="w-10 h-10 text-slate-600" /></div>}
                     </div>
                     <div className="flex-1 space-y-1">
-                      <p className="text-[10px] font-black text-primary uppercase tracking-widest">Protocol Identified: {scannedId}</p>
-                      <h3 className="text-2xl font-black uppercase tracking-tight truncate leading-tight">{isLoadingChild ? 'Checking Registry...' : (childData?.childName || 'Unrecognized Subject')}</h3>
-                      
+                      <p className="text-[10px] font-black text-primary uppercase tracking-widest">Subject: {scannedId}</p>
+                      <h3 className="text-2xl font-black uppercase tracking-tight truncate leading-tight">{isLoadingChild ? 'Syncing...' : (childData?.childName || 'Identity check required')}</h3>
                       {!isLoadingChild && childData && (
                         <div className="flex items-center gap-2 mt-1">
-                          <div className="flex items-center gap-2 py-1 px-2 bg-teal-500/10 rounded border border-teal-500/20 w-fit">
-                            <Phone className="w-3 h-3 text-teal-400" />
-                            <span className="text-[10px] font-black text-teal-100 uppercase tracking-widest">{childData.parentMobileNumber}</span>
-                          </div>
-                          <Button 
-                            size="sm" 
-                            variant="secondary" 
-                            asChild 
-                            className="h-7 px-2 bg-teal-600 hover:bg-teal-700 text-white border-0"
-                          >
-                            <a href={`tel:${childData.parentMobileNumber}`}>
-                              <PhoneCall className="w-3 h-3 mr-1.5" />
-                              <span className="text-[9px] font-black uppercase">Call</span>
-                            </a>
+                          <Badge className="bg-teal-500/20 text-teal-300 border-teal-500/30 text-[9px] font-black uppercase">{childData.parentMobileNumber}</Badge>
+                          <Button size="sm" variant="secondary" asChild className="h-6 px-2 bg-teal-600 hover:bg-teal-700 text-white border-0 text-[8px] font-black uppercase">
+                            <a href={`tel:${childData.parentMobileNumber}`}><PhoneCall className="w-2.5 h-2.5 mr-1" /> Call</a>
                           </Button>
                         </div>
                       )}
@@ -418,75 +384,51 @@ export default function VolunteerApp() {
                   </div>
 
                   <div className="pt-4 border-t border-white/10 space-y-3">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Optional: Field Status Photo</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Attach Field Condition Photo</p>
                     <div className="flex gap-3 items-center">
-                      <div 
-                        className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-700 bg-black/40 flex items-center justify-center cursor-pointer overflow-hidden relative shadow-pointer group"
-                        onClick={() => statusPhotoRef.current?.click()}
-                      >
-                        {statusPreview ? (
-                          <>
-                            <Image src={statusPreview} alt="Status" fill className="object-cover" />
-                            <Button 
-                              size="icon" 
-                              variant="destructive" 
-                              className="absolute inset-0 m-auto w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity" 
-                              onClick={(e) => { 
-                                e.stopPropagation(); 
-                                setStatusFile(null);
-                                setStatusPreview(null);
-                              }}
-                            >
-                              <X className="w-3 h-3" />
-                            </Button>
-                          </>
-                        ) : (
-                          <CloudUpload className="w-6 h-6 text-slate-600" />
-                        )}
+                      <div className="w-16 h-16 rounded-xl border-2 border-dashed border-slate-700 bg-black/40 flex items-center justify-center cursor-pointer overflow-hidden relative shadow-pointer" onClick={() => statusPhotoRef.current?.click()}>
+                        {statusPreview ? <Image src={statusPreview} alt="Status" fill className="object-cover" /> : <CloudUpload className="w-6 h-6 text-slate-600" />}
                       </div>
-                      <p className="text-[9px] text-slate-500 italic">Capture SITREP intel.</p>
+                      <p className="text-[9px] text-slate-500 italic">Visual intel for control room.</p>
                       <input type="file" ref={statusPhotoRef} className="hidden" accept="image/*" onChange={handleStatusFileChange} />
                     </div>
                   </div>
 
                   {currentCoords && (
-                    <div className="space-y-3">
-                      <div className="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
-                        <div className="space-y-1">
-                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3 text-primary animate-pulse" /> Telemetry Locked</p>
-                          <p className="font-mono text-[10px] font-bold text-slate-100">{currentCoords.lat.toFixed(6)}, {currentCoords.lng.toFixed(6)}</p>
-                        </div>
-                        <Button size="sm" variant="outline" className="h-8 text-[9px] font-black uppercase border-primary text-primary px-3" asChild>
-                          <a href={`https://www.google.com/maps/search/?api=1&query=${currentCoords.lat},${currentCoords.lng}`} target="_blank" rel="noopener noreferrer">
-                            <Navigation className="w-3 h-3 mr-1.5" /> Open in App
-                          </a>
-                        </Button>
-                      </div>
-
-                      <div className="w-full h-48 rounded-xl overflow-hidden border-2 border-primary/20 relative shadow-inner">
-                        <iframe
-                          title="Field Map Embed"
-                          width="100%"
-                          height="100%"
-                          style={{ border: 0 }}
-                          src={`https://maps.google.com/maps?q=${currentCoords.lat},${currentCoords.lng}&z=17&ie=UTF8&iwloc=&output=embed`}
-                          allowFullScreen
-                        ></iframe>
-                      </div>
+                    <div className="w-full h-32 rounded-xl overflow-hidden border-2 border-primary/20 relative shadow-inner">
+                      <iframe title="Field Map Embed" width="100%" height="100%" style={{ border: 0 }} src={`https://maps.google.com/maps?q=${currentCoords.lat},${currentCoords.lng}&z=17&ie=UTF8&iwloc=&output=embed`} allowFullScreen></iframe>
                     </div>
                   )}
                 </div>
 
-                <div className="flex flex-col gap-3">
-                  <Button onClick={handleRescue} disabled={isDispatching || !currentCoords} className="w-full h-24 text-2xl font-black uppercase tracking-widest shadow-2xl bg-primary hover:bg-primary/90 rounded-3xl border-b-8 border-orange-800">
-                    {isDispatching ? <Loader2 className="animate-spin w-8 h-8" /> : <><AlertTriangle className="mr-3 w-8 h-8" /> Initiate Broadcast</>}
-                  </Button>
-                  <Button variant="ghost" onClick={cancelCurrentScan} className="font-black uppercase tracking-widest text-[10px] text-muted-foreground">
-                    Stop and Reset
-                  </Button>
-                </div>
+                <Button onClick={handleRescue} disabled={isDispatching || !currentCoords} className="w-full h-20 text-xl font-black uppercase shadow-2xl bg-primary hover:bg-primary/90 rounded-3xl border-b-8 border-orange-800">
+                  {isDispatching ? <Loader2 className="animate-spin" /> : <><AlertTriangle className="mr-3 w-6 h-6" /> Initiate Broadcast</>}
+                </Button>
               </div>
             )}
+
+            {/* Past Mission Log */}
+            <div className="space-y-4 pt-6">
+              <div className="flex items-center gap-2">
+                <History className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-black uppercase tracking-widest">My Mission Log</h3>
+              </div>
+              {pastMissions && pastMissions.length > 0 ? (
+                <div className="space-y-3">
+                  {pastMissions.slice(0, 3).map(mission => (
+                    <Card key={mission.id} className="p-3 border-2 shadow-sm flex items-center justify-between">
+                      <div>
+                        <p className="text-[10px] font-black text-primary">{mission.childId}</p>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase">{new Date(mission.scanTime).toLocaleDateString()}</p>
+                      </div>
+                      <Badge variant={mission.status === 'Child Reunited' ? 'secondary' : 'default'} className="text-[8px] font-black uppercase">{mission.status}</Badge>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs italic text-muted-foreground">No past missions on record.</p>
+              )}
+            </div>
           </>
         ) : (
           <div className="space-y-6 py-8">
@@ -495,39 +437,12 @@ export default function VolunteerApp() {
               <div className="space-y-3">
                 <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">Broadcasting</h2>
                 <div className="bg-slate-900 text-teal-400 p-4 rounded-2xl border-2 border-teal-900/20 text-[10px] font-black uppercase tracking-widest leading-relaxed">
-                  Live situational telemetry active.<br/>Maintain position until contacted.
+                  Live situational telemetry active.
                 </div>
               </div>
-
-              {currentCoords && (
-                 <div className="w-full h-48 rounded-3xl overflow-hidden border-4 border-slate-900 shadow-xl relative">
-                    <div className="absolute top-2 right-2 z-10">
-                      <Button size="sm" variant="outline" className="h-7 text-[8px] font-black uppercase bg-white/90 border-primary text-primary px-2 shadow-lg" asChild>
-                        <a href={`https://www.google.com/maps/search/?api=1&query=${currentCoords.lat},${currentCoords.lng}`} target="_blank" rel="noopener noreferrer">
-                          <Navigation className="w-2.5 h-2.5 mr-1" /> Navigation App
-                        </a>
-                      </Button>
-                    </div>
-                    <iframe
-                      title="Success Map Embed"
-                      width="100%"
-                      height="100%"
-                      style={{ border: 0 }}
-                      src={`https://maps.google.com/maps?q=${currentCoords.lat},${currentCoords.lng}&z=18&ie=UTF8&iwloc=&output=embed`}
-                      allowFullScreen
-                    ></iframe>
-                 </div>
-              )}
-
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-center gap-2 text-[10px] font-black uppercase text-teal-600">
-                  <Wifi className="w-4 h-4 animate-pulse" /> Continuous Data Stream Active
-                </div>
-                <Button onClick={closeMission} variant="destructive" className="w-full h-14 border-b-4 border-red-900 font-black uppercase text-sm shadow-xl flex gap-3">
-                  <CircleStop className="w-5 h-5" />
-                  Stop Sharing & Close
-                </Button>
-              </div>
+              <Button onClick={closeMission} variant="destructive" className="w-full h-14 border-b-4 border-red-900 font-black uppercase text-sm shadow-xl flex gap-3">
+                <CircleStop className="w-5 h-5" /> Stop Sharing & Close
+              </Button>
             </Card>
           </div>
         )}
@@ -536,20 +451,15 @@ export default function VolunteerApp() {
           <AlertDialogContent className="bg-slate-900 border-4 border-primary text-white">
             <AlertDialogHeader>
               <AlertDialogTitle className="flex items-center gap-2 text-primary font-black uppercase tracking-tighter">
-                <Clock className="w-6 h-6 animate-pulse" /> Mission Maintenance Required
+                <Clock className="w-6 h-6 animate-pulse" /> Safety Verification
               </AlertDialogTitle>
               <AlertDialogDescription className="text-slate-300 font-bold">
-                You have been broadcasting live telemetry for 30 minutes. 
-                In compliance with Guardian safety protocols, please confirm if you wish to maintain the active signal or stop the mission.
+                You have been broadcasting for 30 minutes. Are you still maintaining situational presence?
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-              <AlertDialogCancel onClick={() => setShowReminder(false)} className="bg-transparent border-2 border-white text-white hover:bg-white/10 font-black uppercase text-[10px]">
-                Maintain Broadcast
-              </AlertDialogCancel>
-              <AlertDialogAction onClick={closeMission} className="bg-destructive hover:bg-destructive/90 text-white font-black uppercase text-[10px]">
-                Stop Mission & Secure Device
-              </AlertDialogAction>
+              <AlertDialogCancel onClick={() => setShowReminder(false)} className="bg-transparent border-2 border-white text-white font-black uppercase text-[10px]">Continue</AlertDialogCancel>
+              <AlertDialogAction onClick={closeMission} className="bg-destructive hover:bg-destructive/90 text-white font-black uppercase text-[10px]">End Mission</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

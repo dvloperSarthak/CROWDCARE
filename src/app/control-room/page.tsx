@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { NavBar } from '@/components/nav-bar';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -9,12 +9,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { AlertCircle, Check, User, Clock, Loader2, Sparkles, ShieldAlert, Phone, PhoneCall, Navigation, ExternalLink, LocateFixed, Map as MapIcon, BellRing, Camera, AlertTriangle, Lock, ShieldCheck } from 'lucide-react';
+import { AlertCircle, Check, User, Clock, Loader2, Sparkles, ShieldAlert, Phone, PhoneCall, Navigation, ExternalLink, LocateFixed, Map as MapIcon, BellRing, Camera, AlertTriangle, Lock, ShieldCheck, BarChart3, History, Volume2, VolumeX } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { detectDuplicateRescueAlert } from '@/ai/flows/duplicate-rescue-detection-flow';
 import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useUser, setDocumentNonBlocking } from '@/firebase';
-import { collection, doc } from 'firebase/firestore';
+import { collection, doc, query, orderBy } from 'firebase/firestore';
 import Image from 'next/image';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 
 // Dynamically import map to avoid SSR issues with Leaflet
 const TacticalMap = dynamic(() => import('@/components/tactical-map'), { 
@@ -33,6 +34,8 @@ export default function ControlRoom() {
   
   const [passcode, setPasscode] = useState('');
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const alertsRef = useMemoFirebase(() => user && isAuthorized ? collection(db, 'rescueEvents') : null, [db, user, isAuthorized]);
   const { data: alerts, isLoading: loadingAlerts } = useCollection(alertsRef);
@@ -44,8 +47,28 @@ export default function ControlRoom() {
   const [mapCenter, setMapCenter] = useState<[number, number]>([0, 0]);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
 
+  // Fetch notification logs for the selected alert
+  const logsRef = useMemoFirebase(() => {
+    if (!selectedAlertId || !db) return null;
+    return collection(db, 'rescueEvents', selectedAlertId, 'notificationLogs');
+  }, [db, selectedAlertId]);
+  const { data: notificationLogs } = useCollection(logsRef);
+
   const selectedAlert = alerts?.find(a => a.id === selectedAlertId) || null;
   const relatedChild = children?.find(c => c.id === selectedAlert?.childId) || null;
+
+  // Audio ping on new alert
+  useEffect(() => {
+    if (alerts && alerts.length > 0 && isAudioEnabled) {
+      const latest = [...alerts].sort((a, b) => new Date(b.scanTime).getTime() - new Date(a.scanTime).getTime())[0];
+      const isRecent = (Date.now() - new Date(latest.scanTime).getTime() < 5000);
+      
+      if (latest.status === 'Scanned' && isRecent) {
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        audio.play().catch(() => {});
+      }
+    }
+  }, [alerts, isAudioEnabled]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -71,13 +94,26 @@ export default function ControlRoom() {
         if (notificationPermission === 'granted') {
           new Notification("Guardian Alert: Child Located", {
             body: `Incident ${latest.id} (Child ${latest.childId}) is active. Tracking established.`,
-            icon: '/favicon.ico',
             tag: latest.id
           });
         }
       }
     }
   }, [alerts, notificationPermission, toast]);
+
+  const stats = useMemo(() => {
+    if (!alerts || !children) return { active: 0, resolved: 0, total: 0 };
+    return {
+      active: alerts.filter(a => a.status !== 'Child Reunited').length,
+      resolved: alerts.filter(a => a.status === 'Child Reunited').length,
+      total: children.length
+    };
+  }, [alerts, children]);
+
+  const chartData = [
+    { name: 'Active', value: stats.active, color: '#FF7733' },
+    { name: 'Resolved', value: stats.resolved, color: '#33FFD1' },
+  ];
 
   const handleAuth = (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,12 +135,6 @@ export default function ControlRoom() {
         checkDuplicate(alert);
       }
     }
-  };
-
-  const handleLocateOnMap = (alert: any) => {
-    setMapCenter([alert.locationLatitude, alert.locationLongitude]);
-    setSelectedAlertId(alert.id);
-    toast({ description: `Map centered on ${alert.childId}.` });
   };
 
   const checkDuplicate = async (newAlert: any) => {
@@ -220,189 +250,263 @@ export default function ControlRoom() {
     <div className="min-h-screen bg-background pb-20">
       <NavBar title="Guardian Tactical Dashboard" backHref="/" />
       
-      <main className="container-fluid py-6 px-6 mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <main className="container-fluid py-6 px-6 mx-auto space-y-8">
         
-        <div className="lg:col-span-8 space-y-6">
-          <Card className="shadow-2xl border-4 border-slate-900 h-[500px] overflow-hidden">
-            <CardHeader className="bg-slate-900 text-white p-4 flex flex-row items-center justify-between border-b-4 border-primary">
-              <div className="flex items-center gap-2">
-                <MapIcon className="w-5 h-5 text-primary" />
-                <CardTitle className="text-md uppercase font-black tracking-widest">Tactical Field View</CardTitle>
+        {/* Stats Row */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Card className="border-l-8 border-l-primary bg-white shadow-md">
+            <CardContent className="p-6 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Active SITREPs</p>
+                <h3 className="text-4xl font-black text-slate-900">{stats.active}</h3>
               </div>
-              <div className="flex items-center gap-3">
-                {notificationPermission !== 'granted' && (
-                   <Button size="sm" variant="outline" className="h-7 text-[9px] font-black uppercase border-yellow-500 text-yellow-500 hover:bg-yellow-500/10 gap-1.5" onClick={() => Notification.requestPermission()}>
-                      <BellRing className="w-3 h-3" /> Enable Alerts
-                   </Button>
-                )}
-                <Badge variant="outline" className="animate-pulse bg-primary/10 border-primary text-primary px-3 text-[9px] font-black uppercase">
-                  <div className="w-2 h-2 rounded-full bg-primary mr-2" /> Live GPS Stream
-                </Badge>
+              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <ShieldAlert className="w-6 h-6 text-primary" />
               </div>
-            </CardHeader>
-            <CardContent className="p-0 h-full relative">
-              <TacticalMap 
-                alerts={alerts || []} 
-                center={mapCenter} 
-                onMarkerClick={handleSelectAlert} 
-              />
             </CardContent>
           </Card>
-
-          <Card className="shadow-xl border-2 overflow-hidden">
-            <CardHeader className="bg-slate-50 border-b py-4">
-              <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-primary" /> Incident Logs
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-slate-50/50">
-                    <TableHead className="font-black text-[10px] uppercase">Incident</TableHead>
-                    <TableHead className="font-black text-[10px] uppercase">Telemetry</TableHead>
-                    <TableHead className="font-black text-[10px] uppercase">Status</TableHead>
-                    <TableHead className="text-right font-black text-[10px] uppercase">Ops</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loadingAlerts ? (
-                    <TableRow><TableCell colSpan={4} className="text-center py-12"><Loader2 className="animate-spin inline mr-2" /> Syncing...</TableCell></TableRow>
-                  ) : activeAlerts.length === 0 ? (
-                    <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground italic font-medium tracking-widest text-xs uppercase">All zones clear</TableCell></TableRow>
-                  ) : (
-                    activeAlerts.map((alert) => (
-                      <TableRow key={alert.id} className={`cursor-pointer ${selectedAlertId === alert.id ? 'bg-primary/10' : ''}`} onClick={() => handleSelectAlert(alert.id)}>
-                        <TableCell className="font-black text-primary">
-                          <div className="flex items-center gap-2">
-                             {alert.isDuplicate && <AlertTriangle className="w-3 h-3 text-destructive animate-pulse" />}
-                             {alert.childId}
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-mono text-[10px] font-bold">
-                          {alert.locationLatitude.toFixed(6)}, {alert.locationLongitude.toFixed(6)}
-                        </TableCell>
-                        <TableCell><Badge className="text-[9px] font-black uppercase" variant={alert.isDuplicate ? "destructive" : "default"}>{alert.status}</Badge></TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button size="sm" variant="ghost" className="h-7 text-[9px] font-black uppercase hover:bg-primary/10" onClick={(e) => { e.stopPropagation(); handleLocateOnMap(alert); }}>
-                              <LocateFixed className="w-3 h-3 mr-1" /> Locate
-                            </Button>
-                            <Button size="sm" variant="ghost" className="h-7 text-[9px] font-black uppercase hover:bg-primary/10 text-primary" asChild onClick={(e) => e.stopPropagation()}>
-                              <a href={`https://www.google.com/maps/search/?api=1&query=${alert.locationLatitude},${alert.locationLongitude}`} target="_blank" rel="noopener noreferrer">
-                                <Navigation className="w-3 h-3 mr-1" /> App
-                              </a>
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+          <Card className="border-l-8 border-l-teal-500 bg-white shadow-md">
+            <CardContent className="p-6 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Resolved Missions</p>
+                <h3 className="text-4xl font-black text-slate-900">{stats.resolved}</h3>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-teal-500/10 flex items-center justify-center">
+                <Check className="w-6 h-6 text-teal-600" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-l-8 border-l-slate-900 bg-white shadow-md">
+            <CardContent className="p-6 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Registered</p>
+                <h3 className="text-4xl font-black text-slate-900">{stats.total}</h3>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
+                <User className="w-6 h-6 text-slate-600" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-slate-900 text-white shadow-md">
+            <CardContent className="p-4 h-full flex flex-row items-center gap-4">
+              <div className="h-full w-24">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={chartData} innerRadius={25} outerRadius={35} paddingAngle={5} dataKey="value">
+                      {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex-1">
+                <p className="text-[9px] font-black text-primary uppercase tracking-widest">Event Health</p>
+                <p className="text-xs font-bold text-slate-400">Tactical coverage operational across all zones.</p>
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        <div className="lg:col-span-4 space-y-6">
-          <Card className={`shadow-2xl border-4 transition-all duration-500 ${!selectedAlert ? 'opacity-40 grayscale pointer-events-none scale-95 origin-top' : 'opacity-100 scale-100'}`}>
-            <CardHeader className="bg-slate-900 text-white rounded-t-lg border-b-4 border-primary p-4">
-              <CardTitle className="flex items-center gap-2 text-md uppercase font-black tracking-tight"><ShieldAlert className="w-5 h-5 text-primary" />SITREP Detail</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6 space-y-6">
-              {selectedAlert ? (
-                <>
-                  {selectedAlert.isDuplicate && (
-                    <div className="bg-destructive/10 border-2 border-destructive p-3 rounded-xl flex items-start gap-3 animate-pulse">
-                      <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
+          <div className="lg:col-span-8 space-y-6">
+            <Card className="shadow-2xl border-4 border-slate-900 h-[500px] overflow-hidden">
+              <CardHeader className="bg-slate-900 text-white p-4 flex flex-row items-center justify-between border-b-4 border-primary">
+                <div className="flex items-center gap-2">
+                  <MapIcon className="w-5 h-5 text-primary" />
+                  <CardTitle className="text-md uppercase font-black tracking-widest">Tactical Field View</CardTitle>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    className={`h-7 px-2 ${isAudioEnabled ? 'text-primary' : 'text-slate-500'}`} 
+                    onClick={() => setIsAudioEnabled(!isAudioEnabled)}
+                  >
+                    {isAudioEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                  </Button>
+                  {notificationPermission !== 'granted' && (
+                    <Button size="sm" variant="outline" className="h-7 text-[9px] font-black uppercase border-yellow-500 text-yellow-500 hover:bg-yellow-500/10 gap-1.5" onClick={() => Notification.requestPermission()}>
+                        <BellRing className="w-3 h-3" /> Enable Alerts
+                    </Button>
+                  )}
+                  <Badge variant="outline" className="animate-pulse bg-primary/10 border-primary text-primary px-3 text-[9px] font-black uppercase">
+                    <div className="w-2 h-2 rounded-full bg-primary mr-2" /> Live GPS Stream
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0 h-full relative">
+                <TacticalMap 
+                  alerts={alerts || []} 
+                  center={mapCenter} 
+                  onMarkerClick={handleSelectAlert} 
+                />
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-xl border-2 overflow-hidden">
+              <CardHeader className="bg-slate-50 border-b py-4">
+                <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-primary" /> Incident Logs
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50/50">
+                      <TableHead className="font-black text-[10px] uppercase">Incident</TableHead>
+                      <TableHead className="font-black text-[10px] uppercase">Telemetry</TableHead>
+                      <TableHead className="font-black text-[10px] uppercase">Status</TableHead>
+                      <TableHead className="text-right font-black text-[10px] uppercase">Ops</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loadingAlerts ? (
+                      <TableRow><TableCell colSpan={4} className="text-center py-12"><Loader2 className="animate-spin inline mr-2" /> Syncing...</TableCell></TableRow>
+                    ) : activeAlerts.length === 0 ? (
+                      <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground italic font-medium tracking-widest text-xs uppercase">All zones clear</TableCell></TableRow>
+                    ) : (
+                      activeAlerts.map((alert) => (
+                        <TableRow key={alert.id} className={`cursor-pointer ${selectedAlertId === alert.id ? 'bg-primary/10' : ''}`} onClick={() => handleSelectAlert(alert.id)}>
+                          <TableCell className="font-black text-primary">
+                            <div className="flex items-center gap-2">
+                              {alert.isDuplicate && <AlertTriangle className="w-3 h-3 text-destructive animate-pulse" />}
+                              {alert.childId}
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-mono text-[10px] font-bold">
+                            {alert.locationLatitude.toFixed(6)}, {alert.locationLongitude.toFixed(6)}
+                          </TableCell>
+                          <TableCell><Badge className="text-[9px] font-black uppercase" variant={alert.isDuplicate ? "destructive" : "default"}>{alert.status}</Badge></TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button size="sm" variant="ghost" className="h-7 text-[9px] font-black uppercase hover:bg-primary/10" onClick={(e) => { e.stopPropagation(); setMapCenter([alert.locationLatitude, alert.locationLongitude]); setSelectedAlertId(alert.id); }}>
+                                <LocateFixed className="w-3 h-3 mr-1" /> Locate
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-7 text-[9px] font-black uppercase hover:bg-primary/10 text-primary" asChild onClick={(e) => e.stopPropagation()}>
+                                <a href={`https://www.google.com/maps/search/?api=1&query=${alert.locationLatitude},${alert.locationLongitude}`} target="_blank" rel="noopener noreferrer">
+                                  <Navigation className="w-3 h-3 mr-1" /> App
+                                </a>
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="lg:col-span-4 space-y-6">
+            <Card className={`shadow-2xl border-4 transition-all duration-500 ${!selectedAlert ? 'opacity-40 grayscale pointer-events-none scale-95 origin-top' : 'opacity-100 scale-100'}`}>
+              <CardHeader className="bg-slate-900 text-white rounded-t-lg border-b-4 border-primary p-4">
+                <CardTitle className="flex items-center gap-2 text-md uppercase font-black tracking-tight"><ShieldAlert className="w-5 h-5 text-primary" />SITREP Detail</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6 space-y-6">
+                {selectedAlert ? (
+                  <>
+                    {selectedAlert.isDuplicate && (
+                      <div className="bg-destructive/10 border-2 border-destructive p-3 rounded-xl flex items-start gap-3 animate-pulse">
+                        <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-black text-destructive uppercase tracking-widest">Duplicate Incident Detected</p>
+                          <p className="text-[10px] font-bold text-destructive/80 leading-tight">{selectedAlert.notes || 'Identified as high-probability duplicate of recent alert.'}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex gap-4 items-start">
+                      <div className="w-24 h-24 rounded-xl border-4 border-primary overflow-hidden relative shadow-lg bg-slate-100 shrink-0">
+                        {relatedChild?.photoUrl ? <Image src={relatedChild.photoUrl} alt={relatedChild.childName} fill className="object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><User className="w-12 h-12" /></div>}
+                      </div>
                       <div className="space-y-1">
-                         <p className="text-[10px] font-black text-destructive uppercase tracking-widest">Duplicate Incident Detected</p>
-                         <p className="text-[10px] font-bold text-destructive/80 leading-tight">{selectedAlert.notes || 'Identified as high-probability duplicate of recent alert.'}</p>
+                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Incident Target</p>
+                        <h3 className="text-2xl font-black text-primary tracking-tighter">{selectedAlert.childId}</h3>
+                        <p className="font-black text-slate-900 text-sm uppercase">{relatedChild?.childName || 'Identity Check Required'}</p>
                       </div>
                     </div>
-                  )}
 
-                  <div className="flex gap-4 items-start">
-                    <div className="w-24 h-24 rounded-xl border-4 border-primary overflow-hidden relative shadow-lg bg-slate-100 shrink-0">
-                      {relatedChild?.photoUrl ? <Image src={relatedChild.photoUrl} alt={relatedChild.childName} fill className="object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><User className="w-12 h-12" /></div>}
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Incident Target</p>
-                      <h3 className="text-2xl font-black text-primary tracking-tighter">{selectedAlert.childId}</h3>
-                      <p className="font-black text-slate-900 text-sm uppercase">{relatedChild?.childName || 'Identity Check Required'}</p>
-                    </div>
-                  </div>
+                    {selectedAlert.statusPhotoUrl && (
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2"><Camera className="w-3 h-3" /> Field Status Photo</p>
+                        <div className="w-full h-48 rounded-xl overflow-hidden border-2 border-slate-200 relative shadow-inner">
+                            <Image src={selectedAlert.statusPhotoUrl} alt="Field Status" fill className="object-cover" />
+                        </div>
+                      </div>
+                    )}
 
-                  {selectedAlert.statusPhotoUrl && (
-                    <div className="space-y-2">
-                       <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2"><Camera className="w-3 h-3" /> Field Status Photo</p>
-                       <div className="w-full h-48 rounded-xl overflow-hidden border-2 border-slate-200 relative shadow-inner">
-                          <Image src={selectedAlert.statusPhotoUrl} alt="Field Status" fill className="object-cover" />
-                       </div>
+                    {/* Notification History */}
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2"><History className="w-3 h-3 text-teal-500" /> Notification History</p>
+                      <div className="max-h-32 overflow-y-auto space-y-2 pr-2">
+                        {notificationLogs && notificationLogs.length > 0 ? (
+                          notificationLogs.map(log => (
+                            <div key={log.id} className="bg-slate-50 border rounded-lg p-2 text-[10px]">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="font-black text-teal-600">{log.deliveryStatus}</span>
+                                <span className="text-slate-400 font-bold">{new Date(log.sentTime).toLocaleTimeString()}</span>
+                              </div>
+                              <p className="text-slate-700 leading-tight">{log.messageBody}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-[10px] italic text-slate-400">No notifications dispatched.</p>
+                        )}
+                      </div>
                     </div>
-                  )}
 
-                  <div className="p-4 bg-slate-900 rounded-xl border-2 border-primary/20 space-y-3 shadow-inner">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3 animate-pulse" /> Live Telemetry</h4>
-                      <Button size="sm" variant="outline" className="h-6 text-[8px] font-black uppercase border-primary text-primary px-2" asChild>
-                        <a href={`https://www.google.com/maps/search/?api=1&query=${selectedAlert.locationLatitude},${selectedAlert.locationLongitude}`} target="_blank" rel="noopener noreferrer">
-                          <Navigation className="w-2.5 h-2.5 mr-1" /> Navigate in App
-                        </a>
+                    <div className="p-4 bg-slate-900 rounded-xl border-2 border-primary/20 space-y-3 shadow-inner">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3 animate-pulse" /> Live Telemetry</h4>
+                      </div>
+                      <div className="w-full h-32 rounded-lg overflow-hidden border-2 border-slate-700 shadow-xl">
+                        <iframe
+                          title="Google Maps Satellite"
+                          width="100%"
+                          height="100%"
+                          style={{ border: 0 }}
+                          src={`https://maps.google.com/maps?q=${selectedAlert.locationLatitude},${selectedAlert.locationLongitude}&t=k&z=17&ie=UTF8&iwloc=&output=embed`}
+                          allowFullScreen
+                        ></iframe>
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-teal-50 border-2 border-teal-100 rounded-xl space-y-3">
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                          <h4 className="text-[9px] font-black text-teal-900 uppercase tracking-widest flex items-center gap-2"><Phone className="w-3 h-3" /> Contact Command</h4>
+                          <p className="font-black text-teal-950 text-md uppercase leading-tight">{relatedChild?.parentName || 'DATA RESTRICTED'}</p>
+                          <p className="text-xl font-black text-teal-600 tracking-tighter">{relatedChild?.parentMobileNumber || '--- --- ----'}</p>
+                        </div>
+                        {relatedChild?.parentMobileNumber && (
+                          <Button size="sm" variant="secondary" asChild className="bg-teal-600 hover:bg-teal-700 text-white font-black uppercase text-[10px] h-10 px-4 shadow-lg">
+                            <a href={`tel:${relatedChild.parentMobileNumber}`}>
+                              <PhoneCall className="w-4 h-4 mr-2" /> Call Parent
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t-2 space-y-3">
+                      <Button className="w-full h-14 text-lg font-black uppercase tracking-widest bg-teal-600 hover:bg-teal-700 shadow-lg" disabled={selectedAlert.status !== 'Scanned'} onClick={() => notifyParent(selectedAlert.id)}>
+                        Notify Parent
+                      </Button>
+                      <Button className="w-full h-14 text-lg font-black uppercase tracking-widest" variant="outline" disabled={selectedAlert.status !== 'Parent Notified'} onClick={() => resolveRescue(selectedAlert.id)}>
+                        Resolve & Clear
                       </Button>
                     </div>
-                    <div className="w-full h-40 rounded-lg overflow-hidden border-2 border-slate-700 shadow-xl">
-                      <iframe
-                        title="Google Maps Satellite"
-                        width="100%"
-                        height="100%"
-                        style={{ border: 0 }}
-                        src={`https://maps.google.com/maps?q=${selectedAlert.locationLatitude},${selectedAlert.locationLongitude}&t=k&z=17&ie=UTF8&iwloc=&output=embed`}
-                        allowFullScreen
-                      ></iframe>
-                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-24 text-muted-foreground space-y-4">
+                    <div className="bg-slate-100 w-16 h-16 rounded-full mx-auto flex items-center justify-center border-2 border-dashed border-slate-300"><AlertCircle className="w-8 h-8 opacity-20" /></div>
+                    <p className="text-xs font-black uppercase tracking-widest">Select Incident to Track</p>
                   </div>
-
-                  <div className="p-4 bg-teal-50 border-2 border-teal-100 rounded-xl space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <h4 className="text-[9px] font-black text-teal-900 uppercase tracking-widest flex items-center gap-2"><Phone className="w-3 h-3" /> Contact Command</h4>
-                        <p className="font-black text-teal-950 text-md uppercase leading-tight">{relatedChild?.parentName || 'DATA RESTRICTED'}</p>
-                        <p className="text-xl font-black text-teal-600 tracking-tighter">{relatedChild?.parentMobileNumber || '--- --- ----'}</p>
-                      </div>
-                      {relatedChild?.parentMobileNumber && (
-                        <Button 
-                          size="sm" 
-                          variant="secondary" 
-                          asChild 
-                          className="bg-teal-600 hover:bg-teal-700 text-white font-black uppercase text-[10px] h-10 px-4 shadow-lg"
-                        >
-                          <a href={`tel:${relatedChild.parentMobileNumber}`}>
-                            <PhoneCall className="w-4 h-4 mr-2" />
-                            Call Parent
-                          </a>
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="pt-4 border-t-2 space-y-3">
-                    <Button className="w-full h-14 text-lg font-black uppercase tracking-widest bg-teal-600 hover:bg-teal-700 shadow-lg" disabled={selectedAlert.status !== 'Scanned'} onClick={() => notifyParent(selectedAlert.id)}>
-                      Notify Parent
-                    </Button>
-                    <Button className="w-full h-14 text-lg font-black uppercase tracking-widest" variant="outline" disabled={selectedAlert.status !== 'Parent Notified'} onClick={() => resolveRescue(selectedAlert.id)}>
-                      Resolve & Clear
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-24 text-muted-foreground space-y-4">
-                  <div className="bg-slate-100 w-16 h-16 rounded-full mx-auto flex items-center justify-center border-2 border-dashed border-slate-300"><AlertCircle className="w-8 h-8 opacity-20" /></div>
-                  <p className="text-xs font-black uppercase tracking-widest">Select Incident to Track</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </main>
     </div>
