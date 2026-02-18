@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect } from 'react';
@@ -8,6 +7,7 @@ import { ShieldAlert, UserCog, Camera, LayoutDashboard, Fingerprint, LogIn, User
 import { useAuth, initiateAnonymousSignIn, useUser } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { GlowingEffect } from '@/components/ui/glowing-effect';
+import { Hero } from '@/components/ui/animated-hero';
 import { cn } from '@/lib/utils';
 
 export default function Home() {
@@ -21,22 +21,13 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 space-y-12 bg-slate-50 overflow-hidden">
-      <div className="text-center space-y-4 max-w-2xl relative z-10">
-        <div className="flex justify-center mb-4">
-          <div className="bg-primary p-4 rounded-full shadow-lg">
-            <ShieldAlert className="w-12 h-12 text-white" />
-          </div>
-        </div>
-        <h1 className="text-5xl font-extrabold tracking-tight text-primary">
-          CrowdCare <span className="text-foreground">Guardian</span>
-        </h1>
-        <p className="text-xl text-muted-foreground font-medium">
-          Secure, Network-Independent QR Rescue System for Large Events.
-        </p>
+    <div className="min-h-screen flex flex-col items-center p-6 space-y-12 bg-slate-50 overflow-hidden">
+      {/* Animated Hero Section */}
+      <div className="relative z-10 w-full">
+        <Hero />
       </div>
 
-      <div className="w-full max-w-6xl space-y-8 relative z-10">
+      <div className="w-full max-w-6xl space-y-8 relative z-10" id="roles">
         <div className="flex flex-col items-center gap-4">
           {user && (
             <div className="bg-white border rounded-full px-6 py-2 flex items-center gap-2 shadow-sm animate-entrance">
@@ -47,12 +38,14 @@ export default function Home() {
             </div>
           )}
 
-          <Button size="lg" className="gap-2 px-8 h-12 text-lg shadow-md" asChild>
-            <Link href="/login">
-              <LogIn className="w-5 h-5" /> 
-              {user?.isAnonymous ? 'Sign in as Guardian' : 'Guardian Login'}
-            </Link>
-          </Button>
+          <div className="flex gap-4">
+            <Button size="lg" className="gap-2 px-8 h-12 text-lg shadow-md" asChild>
+              <Link href="/login">
+                <LogIn className="w-5 h-5" /> 
+                Guardian Login
+              </Link>
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -82,7 +75,7 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 text-muted-foreground text-sm font-semibold relative z-10">
+      <div className="flex items-center gap-2 text-muted-foreground text-sm font-semibold relative z-10 pt-10">
         <Fingerprint className="w-4 h-4" />
         <span>End-to-End Encrypted & Privacy Centric</span>
       </div>
