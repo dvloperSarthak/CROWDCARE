@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { AlertCircle, Map, Bell, Check, User, Phone, ShieldAlert, Clock, Loader2, Sparkles, UserCircle } from 'lucide-react';
+import { AlertCircle, Map, Bell, Check, User, Phone, ShieldAlert, Clock, Loader2, Sparkles, UserCircle, ExternalLink, Navigation } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { detectDuplicateRescueAlert } from '@/ai/flows/duplicate-rescue-detection-flow';
 import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useUser } from '@/firebase';
@@ -39,7 +39,7 @@ export default function ControlRoom() {
         const newest = alerts[alerts.length - 1];
         toast({
           title: "NEW ALERT RECEIVED",
-          description: `Child ID ${newest.childId} detected in Stadium West.`,
+          description: `Child ID ${newest.childId} detected. Coordinates locked.`,
           variant: "default",
           className: "bg-primary text-white border-none shadow-2xl animate-bounce"
         });
@@ -185,7 +185,7 @@ export default function ControlRoom() {
                   <TableHeader>
                     <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
                       <TableHead className="w-24 font-black text-[10px] uppercase tracking-widest">Target ID</TableHead>
-                      <TableHead className="font-black text-[10px] uppercase tracking-widest">Location</TableHead>
+                      <TableHead className="font-black text-[10px] uppercase tracking-widest">GPS Location</TableHead>
                       <TableHead className="font-black text-[10px] uppercase tracking-widest">Identity</TableHead>
                       <TableHead className="font-black text-[10px] uppercase tracking-widest">Status</TableHead>
                       <TableHead className="font-black text-[10px] uppercase tracking-widest">AI Audit</TableHead>
@@ -207,8 +207,11 @@ export default function ControlRoom() {
                             onClick={() => handleSelectAlert(alert)}
                           >
                             <TableCell className="font-black text-primary">{alert.childId}</TableCell>
-                            <TableCell className="flex items-center gap-2 text-xs font-bold text-slate-600">
-                               <Map className="w-3 h-3 text-primary" /> Sector 4 Gateway
+                            <TableCell className="text-[10px] font-mono font-bold text-slate-600">
+                               <div className="flex flex-col leading-none gap-1">
+                                 <span className="flex items-center gap-1"><Navigation className="w-2 h-2 text-primary" /> {alert.locationLatitude?.toFixed(4)}</span>
+                                 <span className="ml-3">{alert.locationLongitude?.toFixed(4)}</span>
+                               </div>
                             </TableCell>
                             <TableCell className="text-xs font-bold">{child?.childName || 'UNKNOWN'}</TableCell>
                             <TableCell>
@@ -285,6 +288,27 @@ export default function ControlRoom() {
                     </div>
                   </div>
 
+                  <div className="p-4 bg-slate-900 rounded-xl border-2 border-primary/20 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-2">
+                         <Navigation className="w-3 h-3" /> Live Telemetry
+                       </h4>
+                       <Button 
+                         size="sm" 
+                         variant="link" 
+                         className="h-auto p-0 text-[10px] font-black uppercase text-primary"
+                         asChild
+                       >
+                         <a href={`https://www.google.com/maps?q=${selectedAlert.locationLatitude},${selectedAlert.locationLongitude}`} target="_blank" rel="noopener noreferrer">
+                           Open Maps <ExternalLink className="w-2 h-2 ml-1" />
+                         </a>
+                       </Button>
+                    </div>
+                    <p className="font-mono text-xs text-slate-300 font-bold bg-black/40 p-2 rounded border border-white/5">
+                      LOC: {selectedAlert.locationLatitude?.toFixed(6)}, {selectedAlert.locationLongitude?.toFixed(6)}
+                    </p>
+                  </div>
+
                   <div className="p-5 bg-teal-50 border-2 border-teal-100 rounded-2xl space-y-4 shadow-inner">
                     <div className="flex items-center justify-between">
                        <h4 className="text-[10px] font-black text-teal-900 uppercase tracking-widest flex items-center gap-2">
@@ -344,7 +368,7 @@ export default function ControlRoom() {
             </div>
             <div className="absolute top-3 left-3 flex flex-col gap-1">
                <Badge className="bg-black/80 backdrop-blur-md text-[8px] font-black h-5 border-none">SAT_LINK: ONLINE</Badge>
-               <Badge className="bg-black/80 backdrop-blur-md text-[8px] font-black h-5 border-none">GRID: STADIUM_WEST_4</Badge>
+               <Badge className="bg-black/80 backdrop-blur-md text-[8px] font-black h-5 border-none">GRID: GPS_ACTIVE</Badge>
             </div>
           </Card>
         </div>
