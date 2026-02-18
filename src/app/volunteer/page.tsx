@@ -275,7 +275,8 @@ export default function VolunteerApp() {
       status: 'Scanned',
       statusUpdateTime: new Date().toISOString(),
       isDuplicate: false,
-      notes: finalStatusPhotoUrl ? `Status Photo attached: ${finalStatusPhotoUrl}` : '',
+      statusPhotoUrl: finalStatusPhotoUrl,
+      notes: finalStatusPhotoUrl ? `Status Photo attached.` : 'Standard alert.',
     };
 
     const alertRef = doc(db, 'rescueEvents', alertId);

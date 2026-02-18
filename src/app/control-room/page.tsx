@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -7,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { AlertCircle, Check, User, Clock, Loader2, Sparkles, ShieldAlert, Phone, PhoneCall, Navigation, ExternalLink, LocateFixed, Map as MapIcon, BellRing } from 'lucide-react';
+import { AlertCircle, Check, User, Clock, Loader2, Sparkles, ShieldAlert, Phone, PhoneCall, Navigation, ExternalLink, LocateFixed, Map as MapIcon, BellRing, Camera, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { detectDuplicateRescueAlert } from '@/ai/flows/duplicate-rescue-detection-flow';
 import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useUser, setDocumentNonBlocking } from '@/firebase';
@@ -83,6 +84,12 @@ export default function ControlRoom() {
         checkDuplicate(alert);
       }
     }
+  };
+
+  const handleLocateOnMap = (alert: any) => {
+    setMapCenter([alert.locationLatitude, alert.locationLongitude]);
+    setSelectedAlertId(alert.id);
+    toast({ description: `Map centered on ${alert.childId}.` });
   };
 
   const checkDuplicate = async (newAlert: any) => {
@@ -200,12 +207,21 @@ export default function ControlRoom() {
                   ) : (
                     activeAlerts.map((alert) => (
                       <TableRow key={alert.id} className={`cursor-pointer ${selectedAlertId === alert.id ? 'bg-primary/10' : ''}`} onClick={() => handleSelectAlert(alert.id)}>
-                        <TableCell className="font-black text-primary">{alert.childId}</TableCell>
+                        <TableCell className="font-black text-primary">
+                          <div className="flex items-center gap-2">
+                             {alert.isDuplicate && <AlertTriangle className="w-3 h-3 text-destructive animate-pulse" />}
+                             {alert.childId}
+                          </div>
+                        </TableCell>
                         <TableCell className="font-mono text-[10px] font-bold">
                           {alert.locationLatitude.toFixed(6)}, {alert.locationLongitude.toFixed(6)}
                         </TableCell>
-                        <TableCell><Badge className="text-[9px] font-black uppercase">{alert.status}</Badge></TableCell>
-                        <TableCell className="text-right"><Button size="sm" variant="ghost" className="h-7 text-[9px] font-black uppercase">Track</Button></TableCell>
+                        <TableCell><Badge className="text-[9px] font-black uppercase" variant={alert.isDuplicate ? "destructive" : "default"}>{alert.status}</Badge></TableCell>
+                        <TableCell className="text-right">
+                          <Button size="sm" variant="ghost" className="h-7 text-[9px] font-black uppercase hover:bg-primary/10" onClick={(e) => { e.stopPropagation(); handleLocateOnMap(alert); }}>
+                            <LocateFixed className="w-3 h-3 mr-1" /> Locate
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -223,6 +239,16 @@ export default function ControlRoom() {
             <CardContent className="pt-6 space-y-6">
               {selectedAlert ? (
                 <>
+                  {selectedAlert.isDuplicate && (
+                    <div className="bg-destructive/10 border-2 border-destructive p-3 rounded-xl flex items-start gap-3 animate-pulse">
+                      <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+                      <div className="space-y-1">
+                         <p className="text-[10px] font-black text-destructive uppercase tracking-widest">Duplicate Incident Detected</p>
+                         <p className="text-[10px] font-bold text-destructive/80 leading-tight">{selectedAlert.notes || 'Identified as high-probability duplicate of recent alert.'}</p>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex gap-4 items-start">
                     <div className="w-24 h-24 rounded-xl border-4 border-primary overflow-hidden relative shadow-lg bg-slate-100 shrink-0">
                       {relatedChild?.photoUrl ? <Image src={relatedChild.photoUrl} alt={relatedChild.childName} fill className="object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><User className="w-12 h-12" /></div>}
@@ -234,6 +260,15 @@ export default function ControlRoom() {
                     </div>
                   </div>
 
+                  {selectedAlert.statusPhotoUrl && (
+                    <div className="space-y-2">
+                       <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2"><Camera className="w-3 h-3" /> Field Status Photo</p>
+                       <div className="w-full h-48 rounded-xl overflow-hidden border-2 border-slate-200 relative shadow-inner">
+                          <Image src={selectedAlert.statusPhotoUrl} alt="Field Status" fill className="object-cover" />
+                       </div>
+                    </div>
+                  )}
+
                   <div className="p-4 bg-slate-900 rounded-xl border-2 border-primary/20 space-y-3 shadow-inner">
                     <div className="flex items-center justify-between">
                       <h4 className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3 animate-pulse" /> Live Telemetry</h4>
@@ -241,11 +276,11 @@ export default function ControlRoom() {
                     </div>
                     <div className="w-full h-40 rounded-lg overflow-hidden border-2 border-slate-700 shadow-xl">
                       <iframe
-                        title="Google Maps In-App View"
+                        title="Google Maps Satellite"
                         width="100%"
                         height="100%"
                         style={{ border: 0 }}
-                        src={`https://maps.google.com/maps?q=${selectedAlert.locationLatitude},${selectedAlert.locationLongitude}&z=16&ie=UTF8&iwloc=&output=embed`}
+                        src={`https://maps.google.com/maps?q=${selectedAlert.locationLatitude},${selectedAlert.locationLongitude}&t=k&z=17&ie=UTF8&iwloc=&output=embed`}
                         allowFullScreen
                       ></iframe>
                     </div>

@@ -165,6 +165,11 @@
           "type": "string",
           "description": "Any additional notes or remarks from volunteers or operators regarding the event."
         },
+        "statusPhotoUrl": {
+          "type": "string",
+          "description": "URL to the photo taken by the volunteer at the time of rescue.",
+          "format": "uri"
+        },
         "isDuplicate": {
           "type": "boolean",
           "description": "Flag indicating if this rescue event was identified as a potential duplicate by the AI system."
