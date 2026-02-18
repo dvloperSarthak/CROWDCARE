@@ -7,6 +7,7 @@ import { NavBar } from '@/components/nav-bar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { QrCode, Printer, Search, Download, Loader2, UserCircle, MapPin, Navigation, Map as MapIcon, Eye } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
