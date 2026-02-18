@@ -7,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { AlertCircle, Map, Bell, Check, User, Phone, ShieldAlert, Clock, Loader2, Sparkles, UserCircle, ExternalLink, Navigation } from 'lucide-react';
+import { AlertCircle, Map, Bell, Check, User, Phone, ShieldAlert, Clock, Loader2, Sparkles, UserCircle, ExternalLink, Navigation, LocateFixed } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { detectDuplicateRescueAlert } from '@/ai/flows/duplicate-rescue-detection-flow';
 import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useUser } from '@/firebase';
@@ -152,10 +152,10 @@ export default function ControlRoom() {
                   <TableHeader>
                     <TableRow className="bg-slate-50/50">
                       <TableHead className="w-24 font-black text-[10px] uppercase tracking-widest">ID</TableHead>
-                      <TableHead className="font-black text-[10px] uppercase tracking-widest">Location</TableHead>
+                      <TableHead className="font-black text-[10px] uppercase tracking-widest">Precision Location</TableHead>
                       <TableHead className="font-black text-[10px] uppercase tracking-widest">Identity</TableHead>
                       <TableHead className="font-black text-[10px] uppercase tracking-widest">Status</TableHead>
-                      <TableHead className="font-black text-[10px] uppercase tracking-widest">Map</TableHead>
+                      <TableHead className="font-black text-[10px] uppercase tracking-widest">Link</TableHead>
                       <TableHead className="text-right font-black text-[10px] uppercase tracking-widest">Ops</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -170,8 +170,8 @@ export default function ControlRoom() {
                             <TableCell className="font-black text-primary">{alert.childId}</TableCell>
                             <TableCell className="text-[10px] font-mono font-bold text-slate-600">
                                <div className="flex flex-col leading-none">
-                                 <span className="flex items-center gap-1"><Navigation className="w-2 h-2 text-primary" /> {alert.locationLatitude?.toFixed(4)}</span>
-                                 <span className="ml-3">{alert.locationLongitude?.toFixed(4)}</span>
+                                 <span className="flex items-center gap-1 text-primary"><LocateFixed className="w-2.5 h-2.5" /> {alert.locationLatitude?.toFixed(6)}</span>
+                                 <span className="ml-3.5">{alert.locationLongitude?.toFixed(6)}</span>
                                </div>
                             </TableCell>
                             <TableCell className="text-xs font-bold">{child?.childName || 'UNKNOWN'}</TableCell>
@@ -179,11 +179,11 @@ export default function ControlRoom() {
                             <TableCell>
                               <Button size="sm" variant="ghost" className="h-8 w-8 p-0" asChild onClick={(e) => e.stopPropagation()}>
                                 <a href={`https://www.google.com/maps?q=${alert.locationLatitude},${alert.locationLongitude}`} target="_blank" rel="noopener noreferrer">
-                                  <Map className="w-4 h-4 text-primary" />
+                                  <ExternalLink className="w-4 h-4 text-primary" />
                                 </a>
                               </Button>
                             </TableCell>
-                            <TableCell className="text-right"><Button size="sm" variant="ghost" className="h-8 text-[10px] font-black">INSPECT</Button></TableCell>
+                            <TableCell className="text-right"><Button size="sm" variant="ghost" className="h-8 text-[10px] font-black uppercase">Inspect</Button></TableCell>
                           </TableRow>
                         );
                       })
@@ -199,7 +199,7 @@ export default function ControlRoom() {
         <div className="lg:col-span-4 space-y-6">
           <Card className={`shadow-2xl border-2 transition-all duration-500 ${!selectedAlert ? 'opacity-40 grayscale pointer-events-none scale-95 origin-top' : 'opacity-100 scale-100'}`}>
             <CardHeader className="bg-slate-900 text-white rounded-t-lg border-b-4 border-primary p-4">
-              <CardTitle className="flex items-center gap-2 text-md"><ShieldAlert className="w-5 h-5 text-primary" />SITUATION REPORT</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-md uppercase font-black tracking-tight"><ShieldAlert className="w-5 h-5 text-primary" />Situation Report</CardTitle>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
               {selectedAlert ? (
@@ -220,18 +220,19 @@ export default function ControlRoom() {
                       <h4 className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3" /> Live GPS Telemetry</h4>
                       <Button size="sm" variant="link" className="h-auto p-0 text-[10px] font-black uppercase text-primary" asChild>
                         <a href={`https://www.google.com/maps?q=${selectedAlert.locationLatitude},${selectedAlert.locationLongitude}`} target="_blank" rel="noopener noreferrer">
-                          Satellite Link <ExternalLink className="w-2 h-2 ml-1" />
+                          Satellite View <ExternalLink className="w-2 h-2 ml-1" />
                         </a>
                       </Button>
                     </div>
-                    <p className="font-mono text-xs text-slate-300 font-bold bg-black/40 p-2 rounded border border-white/5">
-                      LOC: {selectedAlert.locationLatitude?.toFixed(6)}, {selectedAlert.locationLongitude?.toFixed(6)}
+                    <p className="font-mono text-xs text-slate-300 font-bold bg-black/40 p-2 rounded border border-white/5 flex items-center gap-2">
+                      <LocateFixed className="w-3 h-3 text-primary" />
+                      {selectedAlert.locationLatitude?.toFixed(8)}, {selectedAlert.locationLongitude?.toFixed(8)}
                     </p>
-                    <p className="text-[9px] text-slate-500 font-bold uppercase italic">Reported: {new Date(selectedAlert.scanTime).toLocaleString()}</p>
+                    <p className="text-[9px] text-slate-500 font-bold uppercase italic">Captured: {new Date(selectedAlert.scanTime).toLocaleString()}</p>
                   </div>
 
                   <div className="p-5 bg-teal-50 border-2 border-teal-100 rounded-2xl space-y-2 shadow-inner">
-                    <h4 className="text-[10px] font-black text-teal-900 uppercase tracking-widest flex items-center gap-2"><Phone className="w-3 h-3" /> Secure Contact</h4>
+                    <h4 className="text-[10px] font-black text-teal-900 uppercase tracking-widest flex items-center gap-2"><Phone className="w-3 h-3" /> Verified Contact</h4>
                     <p className="text-lg font-black text-teal-950">{relatedChild?.parentName || 'DATA RESTRICTED'}</p>
                     <p className="text-2xl font-black text-teal-600 tracking-tighter">{relatedChild?.parentMobileNumber || '--- --- ----'}</p>
                   </div>
@@ -258,4 +259,3 @@ export default function ControlRoom() {
     </div>
   );
 }
-

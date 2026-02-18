@@ -21,7 +21,8 @@ import {
   ShieldCheck,
   Search,
   Navigation,
-  ExternalLink
+  ExternalLink,
+  LocateFixed
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking, useAuth, initiateAnonymousSignIn } from '@/firebase';
@@ -36,6 +37,7 @@ export default function VolunteerApp() {
   const [isSent, setIsSent] = useState(false);
   const [isDispatching, setIsDispatching] = useState(false);
   const [currentCoords, setCurrentCoords] = useState<{lat: number, lng: number} | null>(null);
+  const [gpsAccuracy, setGpsAccuracy] = useState<'low' | 'medium' | 'high' | 'none'>('none');
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -53,17 +55,27 @@ export default function VolunteerApp() {
     }
   }, [user, isUserLoading, auth]);
 
-  // Track live location for the volunteer UI
+  // High-Precision GPS Lock - Start immediately to "warm up" the sensor
   useEffect(() => {
-    if (scannedId && !isSent) {
-      const watchId = navigator.geolocation.watchPosition(
-        (pos) => setCurrentCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        (err) => console.error("GPS Watch failed", err),
-        { enableHighAccuracy: true }
-      );
-      return () => navigator.geolocation.clearWatch(watchId);
-    }
-  }, [scannedId, isSent]);
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setCurrentCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        if (pos.coords.accuracy < 10) setGpsAccuracy('high');
+        else if (pos.coords.accuracy < 30) setGpsAccuracy('medium');
+        else setGpsAccuracy('low');
+      },
+      (err) => {
+        console.error("GPS Watch failed", err);
+        setGpsAccuracy('none');
+      },
+      { 
+        enableHighAccuracy: true, 
+        maximumAge: 0, 
+        timeout: 10000 
+      }
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, []);
 
   // Real-time lookup for scanned child details
   const childRef = useMemoFirebase(() => (scannedId && user) ? doc(db, 'children', scannedId) : null, [db, scannedId, user]);
@@ -176,14 +188,20 @@ export default function VolunteerApp() {
 
     setIsDispatching(true);
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => broadcastRescue(position.coords.latitude, position.coords.longitude),
-      (error) => {
-        console.warn("Geolocation failed, using fallback", error);
-        broadcastRescue(28.6139, 77.2090);
-      },
-      { enableHighAccuracy: true, timeout: 5000 }
-    );
+    // If we already have high-precision coordinates from the watch, use them instantly
+    if (currentCoords) {
+      broadcastRescue(currentCoords.lat, currentCoords.lng);
+    } else {
+      // Fallback to one-time request if watch hasn't locked yet
+      navigator.geolocation.getCurrentPosition(
+        (position) => broadcastRescue(position.coords.latitude, position.coords.longitude),
+        (error) => {
+          console.warn("Geolocation failed, using fallback", error);
+          broadcastRescue(28.6139, 77.2090);
+        },
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+    }
   };
 
   const broadcastRescue = (lat: number, lng: number) => {
@@ -208,7 +226,7 @@ export default function VolunteerApp() {
       setIsSent(true);
       toast({
         title: "Alert Broadcasted",
-        description: "Control Room has received the sitrep with location.",
+        description: "Control Room has received the sitrep with precision location.",
       });
     }, 1500);
   }
@@ -227,7 +245,10 @@ export default function VolunteerApp() {
             <Signal className="w-5 h-5 text-green-500 animate-pulse" />
             <span className="font-bold text-xs uppercase tracking-widest text-slate-600">Field Protocol Active</span>
           </div>
-          <Badge variant="secondary" className="text-[10px] font-black uppercase">Guardian v2.5</Badge>
+          <div className="flex items-center gap-1.5">
+             <LocateFixed className={cn("w-3.5 h-3.5", gpsAccuracy === 'high' ? "text-teal-500" : gpsAccuracy === 'medium' ? "text-yellow-500" : "text-slate-300")} />
+             <span className="text-[10px] font-black uppercase text-slate-400">GPS: {gpsAccuracy}</span>
+          </div>
         </div>
 
         {!isSent ? (
@@ -296,32 +317,40 @@ export default function VolunteerApp() {
                       </div>
                     </div>
 
-                    {currentCoords && (
-                      <div className="p-3 bg-white/5 rounded-xl border border-white/10 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <Navigation className="w-3 h-3 text-primary animate-pulse" /> Live GPS Telemetry
-                          </p>
-                          <Badge variant="outline" className="h-4 text-[8px] font-black border-teal-500/50 text-teal-400">SIGNAL: STRONG</Badge>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <p className="font-mono text-[10px] font-bold text-slate-300">
+                    <div className="p-3 bg-white/5 rounded-xl border border-white/10 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                          <Navigation className="w-3 h-3 text-primary animate-pulse" /> Precision Telemetry
+                        </p>
+                        <Badge variant="outline" className={cn("h-4 text-[8px] font-black uppercase", gpsAccuracy === 'high' ? "border-teal-500 text-teal-400" : "border-yellow-500 text-yellow-500")}>
+                          {gpsAccuracy === 'high' ? 'LOCK: PERFECT' : 'LOCK: ACQUIRING...'}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        {currentCoords ? (
+                          <p className="font-mono text-xs font-bold text-slate-100">
                             {currentCoords.lat.toFixed(6)}, {currentCoords.lng.toFixed(6)}
                           </p>
+                        ) : (
+                          <div className="flex items-center gap-2 text-slate-500 text-[10px] font-bold uppercase italic">
+                            <Loader2 className="w-3 h-3 animate-spin" /> Synchronizing Satellites...
+                          </div>
+                        )}
+                        {currentCoords && (
                           <Button size="sm" variant="link" className="h-auto p-0 text-[9px] font-black uppercase text-primary items-center" asChild>
                             <a href={`https://www.google.com/maps?q=${currentCoords.lat},${currentCoords.lng}`} target="_blank" rel="noopener noreferrer">
-                              Verify on Map <ExternalLink className="w-2 h-2 ml-1" />
+                              Verify Map <ExternalLink className="w-2 h-2 ml-1" />
                             </a>
                           </Button>
-                        </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
 
                   <Button 
                     onClick={handleRescue}
-                    disabled={isDispatching} 
-                    className="w-full h-20 text-2xl font-black uppercase tracking-widest shadow-2xl bg-primary hover:bg-primary/90 animate-pulse active:animate-none"
+                    disabled={isDispatching || !currentCoords} 
+                    className="w-full h-20 text-2xl font-black uppercase tracking-widest shadow-2xl bg-primary hover:bg-primary/90 animate-pulse active:animate-none disabled:opacity-50 disabled:animate-none"
                   >
                     {isDispatching ? (
                       <><Loader2 className="mr-3 w-8 h-8 animate-spin" />Broadcasting...</>
@@ -340,7 +369,7 @@ export default function VolunteerApp() {
               <div className="space-y-3">
                 <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter">Mission Live</h2>
                 <div className="bg-teal-50 p-4 rounded-xl border border-teal-100 text-xs text-teal-800 font-bold leading-tight">
-                  SITREP transmitted. Control Room has initiated emergency response. 
+                  SITREP transmitted. Control Room has initiated emergency response with precision coordinates. 
                   <span className="block mt-2 font-black uppercase tracking-widest text-[10px]">Remain with child at coordinates.</span>
                 </div>
               </div>
@@ -354,4 +383,3 @@ export default function VolunteerApp() {
     </div>
   );
 }
-
