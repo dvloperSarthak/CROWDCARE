@@ -7,6 +7,9 @@ import { NavBar } from '@/components/nav-bar';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -36,11 +39,16 @@ import {
   Volume2,
   Activity,
   User,
-  Wifi
+  Wifi,
+  Search,
+  MessageSquare,
+  Sparkles,
+  Megaphone
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking, updateDocumentNonBlocking, useAuth, initiateAnonymousSignIn, useCollection } from '@/firebase';
-import { doc, collection, query, where } from 'firebase/firestore';
+import { doc, collection, query, where, orderBy, limit } from 'firebase/firestore';
+import { findChildMatch } from '@/ai/flows/child-matcher-flow';
 import jsQR from 'jsqr';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
@@ -57,14 +65,14 @@ export default function VolunteerApp() {
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [statusFile, setStatusFile] = useState<File | null>(null);
   const [statusPreview, setStatusPreview] = useState<string | null>(null);
-  const [showReminder, setShowReminder] = useState(false);
-  const [isSOSMode, setIsSOSMode] = useState(false);
+  const [manualDescription, setManualDescription] = useState('');
+  const [isMatching, setIsMatching] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
   const [isAlarmActive, setIsAlarmActive] = useState(false);
   const alarmIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const statusPhotoRef = useRef<HTMLInputElement>(null);
   const requestRef = useRef<number>(null);
   
@@ -77,6 +85,13 @@ export default function VolunteerApp() {
     return query(collection(db, 'rescueEvents'), where('volunteerId', '==', user.uid));
   }, [db, user]);
   const { data: pastMissions } = useCollection(missionsRef);
+
+  const childrenRef = useMemoFirebase(() => db ? collection(db, 'children') : null, [db]);
+  const { data: allChildren } = useCollection(childrenRef);
+
+  const broadcastRef = useMemoFirebase(() => db ? query(collection(db, 'broadcasts'), orderBy('timestamp', 'desc'), limit(1)) : null, [db]);
+  const { data: latestBroadcasts } = useCollection(broadcastRef);
+  const latestBroadcast = latestBroadcasts?.[0];
 
   const guardianRank = useMemo(() => {
     const count = pastMissions?.length || 0;
@@ -210,7 +225,7 @@ export default function VolunteerApp() {
       statusUpdateTime: new Date().toISOString(),
       isDuplicate: false,
       statusPhotoUrl: photoUrl,
-      notes: isSOS ? 'EMERGENCY SOS TRIGGERED' : 'Field SITREP initiated.',
+      notes: isSOS ? 'EMERGENCY SOS TRIGGERED' : `Field SITREP initiated. Manual Match: ${!scannedId}`,
       isSOS: isSOS
     };
 
@@ -219,21 +234,38 @@ export default function VolunteerApp() {
     setActiveAlertId(alertId);
     setIsDispatching(false);
     setIsSent(true);
-    setIsSOSMode(isSOS);
   };
 
-  const closeMission = () => {
-    if (alarmIntervalRef.current) clearInterval(alarmIntervalRef.current);
-    setIsAlarmActive(false);
-    setScannedId(''); 
-    setIsSent(false); 
-    setActiveAlertId(null);
-    setIsSOSMode(false);
+  const runAiMatcher = async () => {
+    if (!manualDescription || !allChildren) return;
+    setIsMatching(true);
+    try {
+      const result = await findChildMatch({
+        description: manualDescription,
+        registry: allChildren.map(c => ({ id: c.id, childName: c.childName, age: c.age, physicalDescription: c.physicalDescription }))
+      });
+      setAiSuggestions(result.matches || []);
+      if (result.bestMatchId) {
+        toast({ title: "AI Match Found", description: "Identification probability is high." });
+      }
+    } catch (e) {
+      toast({ variant: 'destructive', title: "AI Sync Failure" });
+    }
+    setIsMatching(false);
   };
 
   return (
     <div className="min-h-screen bg-background pb-20">
       <NavBar title="Field Terminal" backHref="/" />
+      
+      {latestBroadcast && (
+        <div className="bg-primary text-white py-2 px-4 overflow-hidden whitespace-nowrap">
+           <div className="flex items-center gap-2 animate-marquee font-black uppercase text-[10px] tracking-widest">
+              <Megaphone className="w-3 h-3" /> COMMAND BROADCAST: {latestBroadcast.message}
+           </div>
+        </div>
+      )}
+
       <main className="container max-w-md mx-auto py-6 px-4 space-y-6">
         <div className="grid grid-cols-2 gap-3">
           <Card className="bg-slate-900 text-white p-3 border-none shadow-lg rounded-2xl">
@@ -260,6 +292,7 @@ export default function VolunteerApp() {
               {isScanning && (
                 <div className="absolute inset-0 pointer-events-none z-10">
                   <div className="w-full h-1 bg-primary shadow-[0_0_20px_rgba(255,119,51,1)] animate-scan-line absolute" />
+                  <Button variant="destructive" className="absolute bottom-6 left-1/2 -translate-x-1/2 h-10 px-6 font-black uppercase text-[10px]" onClick={stopCamera}>Cancel Scan</Button>
                 </div>
               )}
               {!isScanning && (
@@ -268,9 +301,42 @@ export default function VolunteerApp() {
                     <Camera className="w-12 h-12 text-white" />
                   </div>
                   <Button onClick={startCamera} className="w-full h-16 text-lg font-black uppercase tracking-widest bg-primary rounded-2xl">Scan ID</Button>
+                  <Button variant="ghost" className="text-white text-[10px] font-black uppercase" onClick={() => setManualDescription('describe')}>Describe Child Instead</Button>
                 </div>
               )}
             </Card>
+
+            {manualDescription && !scannedId && (
+              <Card className="border-2 border-slate-200 p-4 space-y-4 animate-entrance">
+                <div className="flex items-center gap-2">
+                   <Sparkles className="w-4 h-4 text-primary" />
+                   <h3 className="text-[10px] font-black uppercase tracking-widest">AI Matching Engine</h3>
+                </div>
+                <Textarea 
+                  placeholder="Describe clothing, hair, age, etc..." 
+                  className="min-h-[80px]"
+                  value={manualDescription === 'describe' ? '' : manualDescription}
+                  onChange={(e) => setManualDescription(e.target.value)}
+                />
+                <Button className="w-full h-10 font-black uppercase text-[10px]" onClick={runAiMatcher} disabled={isMatching}>
+                  {isMatching ? <Loader2 className="animate-spin" /> : "Run AI Search"}
+                </Button>
+                
+                {aiSuggestions.length > 0 && (
+                  <div className="space-y-2">
+                    {aiSuggestions.map((suggestion) => (
+                      <div key={suggestion.childId} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border">
+                        <div>
+                          <p className="font-black text-xs">{suggestion.childId}</p>
+                          <p className="text-[9px] text-muted-foreground">{suggestion.reason}</p>
+                        </div>
+                        <Button size="sm" variant="outline" className="h-7 text-[8px] font-black uppercase" onClick={() => setScannedId(suggestion.childId)}>Select</Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+            )}
 
             <Button onClick={() => handleRescue(true)} variant="destructive" className="h-20 w-full text-xl font-black uppercase shadow-2xl rounded-3xl border-b-8 border-red-900">
                <ShieldAlert className="w-6 h-6 mr-3" /> Emergency SOS
@@ -295,10 +361,10 @@ export default function VolunteerApp() {
                     </div>
                   </div>
                   
-                  {!isLoadingChild && childData?.medicalRequirements && childData.medicalRequirements !== 'None' && (
-                    <div className="bg-red-950/50 border border-red-800 rounded-xl p-3 text-[10px] font-bold text-red-200">
-                       <Activity className="w-3 h-3 mb-1 text-red-500" />
-                       {childData.medicalRequirements}
+                  {!isLoadingChild && childData?.physicalDescription && (
+                    <div className="bg-slate-800/50 p-3 rounded-xl text-[10px] text-slate-400 italic">
+                       <span className="font-black uppercase text-primary block not-italic mb-1">Verified Profile Intel:</span>
+                       {childData.physicalDescription}
                     </div>
                   )}
 
@@ -329,16 +395,16 @@ export default function VolunteerApp() {
           </>
         ) : (
           <div className="space-y-6 py-8">
-            <Card className={cn("p-8 text-center space-y-8 shadow-2xl animate-success-pop rounded-[3rem] border-8", isSOSMode ? "border-red-600 bg-red-50" : "border-teal-500 bg-white")}>
-              <div className={cn("w-24 h-24 rounded-full flex items-center justify-center mx-auto shadow-inner", isSOSMode ? "bg-red-200 animate-pulse" : "bg-teal-100")}>
-                {isSOSMode ? <ShieldAlert className="w-16 h-16 text-red-600" /> : <CheckCircle2 className="w-16 h-16 text-teal-600" />}
+            <Card className="p-8 text-center space-y-8 shadow-2xl animate-success-pop rounded-[3rem] border-8 border-teal-500 bg-white">
+              <div className="w-24 h-24 bg-teal-100 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                <CheckCircle2 className="w-16 h-16 text-teal-600" />
               </div>
-              <div className="space-y-3 text-center">
+              <div className="space-y-3">
                 <h2 className="text-3xl font-black uppercase tracking-tighter">Mission Active</h2>
                 <Button onClick={toggleCrowdAlarm} variant={isAlarmActive ? "destructive" : "outline"} className={cn("w-full h-14 rounded-2xl font-black uppercase", isAlarmActive && "animate-pulse")}>
                    <Volume2 className="w-5 h-5 mr-3" /> {isAlarmActive ? "Disable Signal" : "Active Crowd Signal"}
                 </Button>
-                <Button onClick={closeMission} variant="ghost" className="text-muted-foreground font-black uppercase text-[10px]">Terminate Broadcast</Button>
+                <Button onClick={() => { setIsSent(false); setScannedId(''); setManualDescription(''); }} variant="ghost" className="text-muted-foreground font-black uppercase text-[10px]">Close & Reset</Button>
               </div>
             </Card>
           </div>

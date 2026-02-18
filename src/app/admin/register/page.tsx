@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { UserPlus, CheckCircle2, Loader2, QrCode, Lock, ImagePlus, X, CloudUpload, Activity } from 'lucide-react';
+import { UserPlus, CheckCircle2, Loader2, QrCode, Lock, ImagePlus, X, CloudUpload, Activity, Info } from 'lucide-react';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import Image from 'next/image';
@@ -91,6 +91,7 @@ export default function AdminRegister() {
       id,
       childName: formData.get('name') as string,
       age: parseInt(formData.get('age') as string) || 0,
+      physicalDescription: formData.get('description') as string || '',
       parentName: formData.get('parentName') as string,
       parentMobileNumber: formData.get('parentPhone') as string,
       emergencyContactNumber: formData.get('emergencyContact') as string,
@@ -224,6 +225,13 @@ export default function AdminRegister() {
                   <Label htmlFor="age" className="text-xs uppercase font-black tracking-widest">Age</Label>
                   <Input id="age" name="age" type="number" placeholder="0" className="h-12 text-lg font-bold" required />
                 </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="description" className="text-xs uppercase font-black tracking-widest flex items-center gap-2">
+                   <Info className="w-3 h-3 text-primary" /> Physical Description
+                </Label>
+                <Textarea id="description" name="description" placeholder="e.g., Blonde hair, wearing a red dinosaur t-shirt, blue shorts..." className="min-h-[80px] font-medium" />
               </div>
 
               <div className="grid gap-2">

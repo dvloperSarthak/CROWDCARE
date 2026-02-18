@@ -8,11 +8,12 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { AlertCircle, Check, User, Clock, Loader2, Sparkles, ShieldAlert, Phone, PhoneCall, Navigation, ExternalLink, LocateFixed, Map as MapIcon, BellRing, Camera, AlertTriangle, Lock, ShieldCheck, BarChart3, History, Volume2, VolumeX, Flame, Siren, Download, Activity } from 'lucide-react';
+import { AlertCircle, Check, User, Clock, Loader2, Sparkles, ShieldAlert, Phone, PhoneCall, Navigation, ExternalLink, LocateFixed, Map as MapIcon, BellRing, Camera, AlertTriangle, Lock, ShieldCheck, BarChart3, History, Volume2, VolumeX, Flame, Siren, Download, Activity, Megaphone, Send } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { detectDuplicateRescueAlert } from '@/ai/flows/duplicate-rescue-detection-flow';
-import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useUser, setDocumentNonBlocking } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useUser, setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { collection, doc, query, orderBy } from 'firebase/firestore';
 import Image from 'next/image';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
@@ -32,6 +33,8 @@ export default function ControlRoom() {
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
   const [mapCenter, setMapCenter] = useState<[number, number]>([0, 0]);
+  const [broadcastMsg, setBroadcastMsg] = useState('');
+  const [isBroadcasting, setIsBroadcasting] = useState(false);
 
   const alertsRef = useMemoFirebase(() => user && isAuthorized ? collection(db, 'rescueEvents') : null, [db, user, isAuthorized]);
   const { data: alerts, isLoading: loadingAlerts } = useCollection(alertsRef);
@@ -41,6 +44,25 @@ export default function ControlRoom() {
 
   const selectedAlert = alerts?.find(a => a.id === selectedAlertId) || null;
   const relatedChild = children?.find(c => c.id === selectedAlert?.childId) || null;
+
+  const handleBroadcast = async () => {
+    if (!broadcastMsg || !user) return;
+    setIsBroadcasting(true);
+    const broadcastId = `BC-${Date.now()}`;
+    const broadcastRef = doc(db, 'broadcasts', broadcastId);
+    
+    setDocumentNonBlocking(broadcastRef, {
+      id: broadcastId,
+      message: broadcastMsg,
+      priority: 'High',
+      sentBy: user.uid,
+      timestamp: new Date().toISOString()
+    }, { merge: true });
+
+    toast({ title: "Broadcast Disseminated", description: "Global alert synced to all field terminals." });
+    setBroadcastMsg('');
+    setIsBroadcasting(false);
+  };
 
   const exportTacticalData = () => {
     if (!alerts) return;
@@ -107,14 +129,12 @@ export default function ControlRoom() {
             <div><p className="text-[10px] font-black text-muted-foreground uppercase">SOS Emergencies</p><h3 className="text-4xl font-black text-red-600">{stats.sos}</h3></div>
             <Siren className="w-8 h-8 text-red-600" />
           </Card>
-          <Card className="bg-slate-900 text-white p-4 flex flex-row items-center gap-4">
-             <div className="flex-1">
-                <p className="text-[10px] font-black text-primary uppercase">Tactical Ops</p>
-                <Button size="sm" variant="outline" className="mt-2 h-7 text-[8px] font-black uppercase border-primary text-primary hover:bg-primary/10" onClick={exportTacticalData}>
-                   <Download className="w-3 h-3 mr-1" /> Export SITREPs
-                </Button>
+          <Card className="bg-slate-900 text-white p-4 space-y-3">
+             <p className="text-[10px] font-black text-primary uppercase flex items-center gap-2"><Megaphone className="w-3 h-3" /> Mass Broadcast</p>
+             <div className="flex gap-2">
+                <Input placeholder="Message volunteers..." className="h-8 text-[10px] bg-slate-800 border-none text-white" value={broadcastMsg} onChange={e => setBroadcastMsg(e.target.value)} />
+                <Button size="icon" className="h-8 w-8 bg-primary" onClick={handleBroadcast} disabled={isBroadcasting}><Send className="w-3 h-3" /></Button>
              </div>
-             <BarChart3 className="w-10 h-10 text-primary opacity-20" />
           </Card>
         </div>
 
@@ -163,6 +183,13 @@ export default function ControlRoom() {
                         </div>
                      </div>
 
+                     {relatedChild?.physicalDescription && (
+                       <div className="bg-slate-50 border p-3 rounded-xl text-[10px] font-medium text-slate-600">
+                          <p className="font-black uppercase text-[8px] text-primary mb-1">Physical Profile:</p>
+                          {relatedChild.physicalDescription}
+                       </div>
+                     )}
+
                      {relatedChild?.medicalRequirements && relatedChild.medicalRequirements !== 'None' && (
                        <div className="bg-red-50 border border-red-200 p-3 rounded-xl text-[10px] font-medium text-red-900">
                           <p className="font-black uppercase mb-1">Medical Briefing:</p>
@@ -184,6 +211,7 @@ export default function ControlRoom() {
                         <div className="w-full h-24 rounded-lg overflow-hidden border border-slate-700">
                            <iframe width="100%" height="100%" style={{ border: 0 }} src={`https://maps.google.com/maps?q=${selectedAlert.locationLatitude},${selectedAlert.locationLongitude}&t=k&z=17&output=embed`} allowFullScreen></iframe>
                         </div>
+                        <Button className="w-full h-8 text-[9px] font-black uppercase" variant="outline" onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${selectedAlert.locationLatitude},${selectedAlert.locationLongitude}`)}>Tactical Nav (App)</Button>
                      </div>
 
                      <div className="space-y-3 pt-4 border-t">

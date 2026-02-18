@@ -75,6 +75,10 @@
           "type": "number",
           "description": "The age of the child at registration."
         },
+        "physicalDescription": {
+          "type": "string",
+          "description": "Physical description of the child (clothing, hair color, height) for AI matching."
+        },
         "parentName": {
           "type": "string",
           "description": "The full name of the parent or guardian registering the child."
@@ -204,51 +208,20 @@
         "isDuplicate"
       ]
     },
-    "NotificationLog": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "NotificationLog",
-      "type": "object",
-      "description": "Records details of notifications sent to parents regarding rescue events in the CrowdCare Guardian system.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the NotificationLog entry."
-        },
-        "rescueEventId": {
-          "type": "string",
-          "description": "Reference to the RescueEvent this notification pertains to. (Relationship: RescueEvent 1:N NotificationLog)"
-        },
-        "recipientMobileNumber": {
-          "type": "string",
-          "description": "The mobile number to which the notification was sent."
-        },
-        "notificationType": {
-          "type": "string",
-          "description": "Type of notification sent (e.g., 'SMS', 'Push Notification', 'WiFi Alert')."
-        },
-        "messageBody": {
-          "type": "string",
-          "description": "The actual content of the message sent to the parent."
-        },
-        "sentTime": {
-          "type": "string",
-          "description": "Timestamp when the notification was sent.",
-          "format": "date-time"
-        },
-        "deliveryStatus": {
-          "type": "string",
-          "description": "Status of the notification delivery (e.g., 'Sent', 'Delivered', 'Failed', 'Read')."
-        }
-      },
-      "required": [
-        "id",
-        "rescueEventId",
-        "recipientMobileNumber",
-        "notificationType",
-        "messageBody",
-        "sentTime",
-        "deliveryStatus"
-      ]
+    "Broadcast": {
+       "$schema": "http://json-schema.org/draft-07/schema#",
+       "title": "Broadcast",
+       "type": "object",
+       "description": "Mass alerts sent by operators to all volunteers.",
+       "properties": {
+          "id": { "type": "string" },
+          "message": { "type": "string" },
+          "priority": { "type": "string", "enum": ["Low", "High", "Critical"] },
+          "sentBy": { "type": "string" },
+          "timestamp": { "type": "string", "format": "date-time" },
+          "expiresAt": { "type": "string", "format": "date-time" }
+       },
+       "required": ["id", "message", "priority", "timestamp"]
     }
   },
   "auth": {
@@ -265,8 +238,7 @@
           "entityName": "User",
           "schema": {
             "$ref": "#/backend/entities/User"
-          },
-          "description": "Stores individual user profiles including basic information and assigned internal role for display. Access is path-based for the user's own profile."
+          }
         }
       },
       {
@@ -275,14 +247,7 @@
           "entityName": "User",
           "schema": {
             "$ref": "#/backend/entities/User"
-          },
-          "description": "Collection for explicit administrative role assignment. The existence of a document at this path signifies that 'adminId' has administrative privileges, enabling DBAC without requiring a `get()` call to a parent document. Used for authorization independence.",
-          "params": [
-            {
-              "name": "adminId",
-              "description": "The unique identifier of the user who possesses the Admin role."
-            }
-          ]
+          }
         }
       },
       {
@@ -291,14 +256,7 @@
           "entityName": "User",
           "schema": {
             "$ref": "#/backend/entities/User"
-          },
-          "description": "Collection for explicit operator role assignment. The existence of a document at this path signifies that 'operatorId' has control room operator privileges, enabling DBAC without requiring a `get()` call to a parent document. Used for authorization independence.",
-          "params": [
-            {
-              "name": "operatorId",
-              "description": "The unique identifier of the user who possesses the Operator role."
-            }
-          ]
+          }
         }
       },
       {
@@ -307,14 +265,7 @@
           "entityName": "Child",
           "schema": {
             "$ref": "#/backend/entities/Child"
-          },
-          "description": "Stores registration details for children. Accessible by Admins and Operators. Includes 'registeredById' for audit, but authorization is based on global roles for full access. Supports QAPs for listing all children by authorized roles.",
-          "params": [
-            {
-              "name": "childId",
-              "description": "The unique identifier for the child's registration record."
-            }
-          ]
+          }
         }
       },
       {
@@ -323,39 +274,16 @@
           "entityName": "RescueEvent",
           "schema": {
             "$ref": "#/backend/entities/RescueEvent"
-          },
-          "description": "Records instances of lost children being found. Accessible by Admins (full access) and Operators (read/update). Volunteers can create new events and view their own initiated events, facilitated by the denormalized 'volunteerId' field for authorization independence and QAP-compliant list queries.",
-          "params": [
-            {
-              "name": "rescueEventId",
-              "description": "The unique identifier for a specific rescue event."
-            }
-          ]
+          }
         }
       },
       {
-        "path": "/rescueEvents/{rescueEventId}/notificationLogs/{notificationLogId}",
+        "path": "/broadcasts/{broadcastId}",
         "definition": {
-          "entityName": "NotificationLog",
-          "schema": {
-            "$ref": "#/backend/entities/NotificationLog"
-          },
-          "description": "Logs notifications sent regarding a specific rescue event. Access is granted to Admins and Operators based on their global roles, ensuring authorization independence from the parent 'rescueEvent' document for these roles. Nested to provide clear contextual relationship with its parent rescue event.",
-          "params": [
-            {
-              "name": "rescueEventId",
-              "description": "The unique identifier of the parent rescue event to which this notification log pertains."
-            },
-            {
-              "name": "notificationLogId",
-              "description": "The unique identifier for a specific notification log entry."
-            }
-          ]
+           "entityName": "Broadcast",
+           "schema": { "$ref": "#/backend/entities/Broadcast" }
         }
       }
-    ],
-    "reasoning": "The proposed Firestore structure prioritizes security, scalability, and debuggability by strictly adhering to the mandated design principles, especially Authorization Independence and QAP compliance."
+    ]
   }
 }
-
-    
