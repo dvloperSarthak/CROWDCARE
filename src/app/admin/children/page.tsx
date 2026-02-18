@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection } from 'firebase/firestore';
+import Image from 'next/image';
 
 export default function ChildrenList() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -38,7 +39,7 @@ export default function ChildrenList() {
             />
           </div>
           <Button className="w-full md:w-auto" variant="outline" asChild>
-            <a href="/admin/register">Register Another</a>
+            <a href="/admin/register">Register New ID</a>
           </Button>
         </div>
 
@@ -47,7 +48,7 @@ export default function ChildrenList() {
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-20 gap-2">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                <p className="text-muted-foreground">Syncing with Guardian Registry...</p>
+                <p className="text-muted-foreground">Syncing with Central Registry...</p>
               </div>
             ) : (
               <Table>
@@ -87,26 +88,26 @@ export default function ChildrenList() {
                                 <DialogTitle className="text-center">Guardian QR ID: {child.id}</DialogTitle>
                               </DialogHeader>
                               <div className="flex flex-col items-center justify-center p-6 space-y-6">
-                                <div className="bg-white p-4 border-8 border-primary rounded-xl shadow-inner">
-                                  {/* Simple QR Simulation */}
-                                  <div className="grid grid-cols-4 gap-1 w-48 h-48 relative">
-                                    {Array.from({ length: 16 }).map((_, i) => (
-                                      <div key={i} className={`rounded-sm ${Math.random() > 0.4 ? 'bg-black' : 'bg-transparent'}`} />
-                                    ))}
-                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                       <div className="bg-white px-3 py-1 border-2 border-black font-bold text-xl">{child.id}</div>
-                                    </div>
-                                  </div>
+                                <div className="bg-white p-4 border-8 border-primary rounded-xl shadow-2xl">
+                                  {/* Using a real QR API for functional QR codes */}
+                                  <Image 
+                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${child.id}`}
+                                    alt={`QR Code for ${child.id}`}
+                                    width={200}
+                                    height={200}
+                                    className="rounded-sm"
+                                  />
                                 </div>
                                 <div className="text-center">
-                                  <p className="font-bold text-lg">{child.childName}</p>
+                                  <p className="font-black text-2xl text-slate-900">{child.id}</p>
+                                  <p className="font-bold text-lg text-primary">{child.childName}</p>
                                   <p className="text-muted-foreground text-sm">Registered: {new Date(child.registrationDate).toLocaleDateString()}</p>
                                 </div>
                                 <div className="flex gap-4 w-full">
-                                  <Button className="flex-1 gap-2">
+                                  <Button className="flex-1 gap-2 h-12 text-lg font-bold" onClick={() => window.print()}>
                                     <Printer className="w-4 h-4" /> Print
                                   </Button>
-                                  <Button variant="outline" className="flex-1 gap-2">
+                                  <Button variant="outline" className="flex-1 gap-2 h-12 text-lg font-bold">
                                     <Download className="w-4 h-4" /> Export
                                   </Button>
                                 </div>
