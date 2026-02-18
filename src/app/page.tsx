@@ -2,7 +2,7 @@
 "use client";
 
 import Link from 'next/link';
-import { UserCog, Camera, LayoutDashboard, Fingerprint, LogIn, UserCircle, ShieldCheck, ShieldAlert, Loader2, Siren, AlertTriangle } from 'lucide-react';
+import { UserCog, Camera, LayoutDashboard, Fingerprint, LogIn, UserCircle, ShieldCheck, ShieldAlert, Loader2, Siren, AlertTriangle, Search } from 'lucide-react';
 import { useAuth, initiateAnonymousSignIn, useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { GlowingEffect } from '@/components/ui/glowing-effect';
@@ -24,6 +24,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 
 export default function Home() {
   const auth = useAuth();
@@ -31,6 +32,7 @@ export default function Home() {
   const db = useFirestore();
   const { toast } = useToast();
   const [isSOSLoading, setIsSOSLoading] = useState(false);
+  const [statusId, setStatusId] = useState('');
 
   // Role verification
   const adminRoleRef = useMemoFirebase(() => user ? doc(db, 'roles_admin', user.uid) : null, [db, user]);
@@ -45,29 +47,6 @@ export default function Home() {
   const isGuardian = isAdmin || isOperator;
   const isLoadingRoles = (loadingAdmin || loadingOperator) && !isEmailUser;
 
-  useEffect(() => {
-    if (user && !user.isAnonymous && !adminRole && !loadingAdmin) {
-      const roleRef = doc(db, 'roles_admin', user.uid);
-      const userRef = doc(db, 'users', user.uid);
-      
-      setDocumentNonBlocking(roleRef, {
-        id: user.uid,
-        email: user.email,
-        role: 'Admin',
-        createdAt: new Date().toISOString()
-      }, { merge: true });
-
-      setDocumentNonBlocking(userRef, {
-        id: user.uid,
-        email: user.email,
-        firstName: 'Authorized',
-        lastName: 'Guardian',
-        role: 'Admin',
-        createdAt: new Date().toISOString()
-      }, { merge: true });
-    }
-  }, [user, adminRole, loadingAdmin, db]);
-
   const handleGuestAccess = () => {
     if (auth && !user) {
       initiateAnonymousSignIn(auth);
@@ -76,15 +55,13 @@ export default function Home() {
 
   const triggerGlobalSOS = async () => {
     setIsSOSLoading(true);
-    
     if (!user) {
       initiateAnonymousSignIn(auth);
-      toast({ title: "Authenticating SOS...", description: "Establishing guest protocol." });
+      toast({ title: "Authenticating SOS..." });
       return;
     }
-
     if (!navigator.geolocation) {
-      toast({ variant: "destructive", title: "GPS Error", description: "Emergency protocol requires location." });
+      toast({ variant: "destructive", title: "GPS Error" });
       setIsSOSLoading(false);
       return;
     }
@@ -93,7 +70,6 @@ export default function Home() {
       (pos) => {
         const alertId = `SOS-PUB-${Date.now()}`;
         const alertRef = doc(db, 'rescueEvents', alertId);
-        
         setDocumentNonBlocking(alertRef, {
           id: alertId,
           childId: 'PUBLIC_SOS',
@@ -107,16 +83,11 @@ export default function Home() {
           notes: 'URGENT: PANIC SIGNAL TRIGGERED FROM MAIN DASHBOARD',
           isSOS: true
         }, { merge: true });
-        
-        toast({
-          variant: "destructive",
-          title: "SOS ACTIVE",
-          description: "Tactical telemetry sent to Command Center.",
-        });
+        toast({ variant: "destructive", title: "SOS ACTIVE" });
         setIsSOSLoading(false);
       },
       () => {
-        toast({ variant: "destructive", title: "Signal Failure", description: "GPS failed to lock for SOS dispatch." });
+        toast({ variant: "destructive", title: "Signal Failure" });
         setIsSOSLoading(false);
       },
       { enableHighAccuracy: true }
@@ -126,10 +97,37 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 overflow-hidden">
       <NavBar title="CrowdCare Guardian" />
-      
       <main className="flex-1 flex flex-col items-center p-6 space-y-12">
-        <div className="relative z-10 w-full">
-          <Hero />
+        <div className="relative z-10 w-full"><Hero /></div>
+
+        <div className="w-full max-w-4xl animate-entrance">
+           <Card className="border-4 border-slate-900 rounded-[2rem] shadow-2xl bg-white overflow-hidden">
+             <div className="bg-slate-900 p-4 flex items-center justify-center gap-2">
+                <Search className="w-5 h-5 text-primary" />
+                <h3 className="text-sm font-black text-white uppercase tracking-widest">Parent Status Hub</h3>
+             </div>
+             <CardContent className="p-8 flex flex-col md:flex-row gap-4 items-center">
+                <div className="flex-1 space-y-2">
+                   <p className="text-sm font-bold text-slate-600">Enter your child's Guardian ID to track their safety status in real-time.</p>
+                   <div className="flex gap-2">
+                      <Input 
+                        placeholder="e.g., C1234" 
+                        className="h-12 text-lg font-black uppercase tracking-tighter"
+                        value={statusId}
+                        onChange={(e) => setStatusId(e.target.value)}
+                      />
+                      <Button className="h-12 px-8 font-black uppercase" asChild disabled={!statusId}>
+                         <Link href={`/status/${statusId}`}>Track</Link>
+                      </Button>
+                   </div>
+                </div>
+                <div className="hidden md:block w-[1px] h-16 bg-slate-200 mx-4" />
+                <div className="text-center md:text-left space-y-1">
+                   <p className="text-[10px] font-black text-muted-foreground uppercase">Lost an ID?</p>
+                   <p className="text-xs font-medium">Find the nearest Hub for manual verification protocols.</p>
+                </div>
+             </CardContent>
+           </Card>
         </div>
 
         <div className="w-full max-w-6xl space-y-8 relative z-10" id="roles">
@@ -144,177 +142,76 @@ export default function Home() {
             ) : user ? (
               <div className="flex flex-col items-center gap-4 animate-entrance">
                 <div className="bg-white border-2 border-primary/20 rounded-full px-6 py-3 flex items-center gap-3 shadow-xl">
-                  {isGuardian ? (
-                    <ShieldCheck className="w-6 h-6 text-teal-600" />
-                  ) : (
-                    <UserCircle className="w-6 h-6 text-primary" />
-                  )}
+                  {isGuardian ? <ShieldCheck className="w-6 h-6 text-teal-600" /> : <UserCircle className="w-6 h-6 text-primary" />}
                   <div className="flex flex-col">
-                    <span className="font-black text-xs uppercase tracking-widest text-slate-900 leading-none mb-1">
-                      {isGuardian ? 'Verified Guardian Node' : 'Guest Volunteer'}
-                    </span>
-                    <span className="text-[10px] font-bold text-muted-foreground truncate max-w-[200px]">
-                      {user.email || 'Anonymous ID: ' + user.uid.slice(0, 8)}
-                    </span>
+                    <span className="font-black text-xs uppercase tracking-widest text-slate-900 mb-1">{isGuardian ? 'Verified Guardian' : 'Guest Volunteer'}</span>
+                    <span className="text-[10px] font-bold text-muted-foreground truncate max-w-[200px]">{user.email || 'Anonymous ID: ' + user.uid.slice(0, 8)}</span>
                   </div>
                 </div>
-                
                 {(!isGuardian || user.isAnonymous) && (
-                  <Button variant="outline" className="gap-2 h-10 px-6 font-bold border-primary text-primary hover:bg-primary/5" asChild>
-                    <Link href="/login">
-                       <ShieldAlert className="w-4 h-4" /> Guardian Authentication
-                    </Link>
+                  <Button variant="outline" className="gap-2 h-10 px-6 font-bold border-primary text-primary" asChild>
+                    <Link href="/login"><ShieldAlert className="w-4 h-4" /> Guardian Auth</Link>
                   </Button>
                 )}
               </div>
             ) : (
-              <Button size="lg" className="gap-2 px-10 h-14 text-xl shadow-xl font-black uppercase tracking-widest" asChild>
-                <Link href="/login">
-                  <LogIn className="w-6 h-6" /> 
-                  Guardian Login
-                </Link>
+              <Button size="lg" className="gap-2 px-10 h-14 text-xl shadow-xl font-black uppercase" asChild>
+                <Link href="/login"><LogIn className="w-6 h-6" /> Guardian Login</Link>
               </Button>
             )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <RoleCard 
-              href="/admin/children"
-              icon={<UserCog className="w-6 h-6" />}
-              title="Guardian Panel"
-              description="ID Registry & Registration Management."
-              isRestricted={!isAdmin}
-              isLoading={isLoadingRoles}
-              subtext={!isAdmin ? "Guardian Credentials Required" : "Guardian Mode Active"}
-            />
-
-            <RoleCard 
-              href="/volunteer"
-              icon={<Camera className="w-6 h-6" />}
-              title="Volunteer App"
-              description="QR Scanner & Rescue Dispatch."
-              onClick={handleGuestAccess}
-              subtext="Public Access Allowed"
-            />
-
-            <RoleCard 
-              href="/control-room"
-              icon={<LayoutDashboard className="w-6 h-6" />}
-              title="Control Room"
-              description="Live Monitoring & Log Tracking."
-              isRestricted={!isOperator && !isAdmin}
-              isLoading={isLoadingRoles}
-              subtext={!isOperator && !isAdmin ? "Operator Credentials Required" : "Dashboard Active"}
-            />
+            <RoleCard href="/admin/children" icon={<UserCog className="w-6 h-6" />} title="Guardian Panel" description="Registry & ID Management." isRestricted={!isAdmin} isLoading={isLoadingRoles} subtext={!isAdmin ? "Auth Required" : "Mode Active"} />
+            <RoleCard href="/volunteer" icon={<Camera className="w-6 h-6" />} title="Volunteer App" description="QR Scanner & Dispatch." onClick={handleGuestAccess} subtext="Public Access" />
+            <RoleCard href="/control-room" icon={<LayoutDashboard className="w-6 h-6" />} title="Control Room" description="Live Dashboard & Intel." isRestricted={!isOperator && !isAdmin} isLoading={isLoadingRoles} subtext={!isOperator && !isAdmin ? "Auth Required" : "Dashboard Active"} />
           </div>
         </div>
 
-        {/* SOS Emergency Hub - Moved to bottom */}
         <div className="w-full max-w-2xl animate-entrance pb-12">
           <Card className="bg-red-50 border-4 border-red-600 shadow-2xl rounded-[2.5rem] overflow-hidden">
             <CardHeader className="bg-red-600 text-white p-6 text-center">
-              <CardTitle className="flex items-center justify-center gap-3 text-3xl font-black uppercase tracking-tighter">
-                <Siren className="w-8 h-8 animate-pulse" /> Emergency Hub
-              </CardTitle>
+              <CardTitle className="flex items-center justify-center gap-3 text-3xl font-black uppercase tracking-tighter"><Siren className="w-8 h-8 animate-pulse" /> Emergency Hub</CardTitle>
             </CardHeader>
             <CardContent className="p-8 space-y-6 text-center">
-              <p className="text-slate-900 font-bold text-lg leading-tight">
-                Are you or someone else in immediate danger? Trigger a silent GPS panic signal to our tactical control room.
-              </p>
-              
+              <p className="text-slate-900 font-bold text-lg leading-tight">Are you in immediate danger? Trigger a silent GPS panic signal to tactical control.</p>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button className="w-full h-20 text-2xl font-black uppercase tracking-widest shadow-xl bg-red-600 hover:bg-red-700 rounded-2xl border-b-8 border-red-900">
-                    <AlertTriangle className="mr-3 w-8 h-8" /> Trigger Panic SOS
-                  </Button>
+                  <Button className="w-full h-20 text-2xl font-black uppercase shadow-xl bg-red-600 hover:bg-red-700 rounded-2xl border-b-8 border-red-900"><AlertTriangle className="mr-3 w-8 h-8" /> Trigger Panic SOS</Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent className="bg-slate-950 border-4 border-red-600 text-white rounded-[2rem]">
                   <AlertDialogHeader>
-                    <AlertDialogTitle className="flex items-center gap-3 text-2xl font-black uppercase tracking-tighter text-red-500">
-                      <Siren className="w-8 h-8 animate-bounce" /> Confirm Emergency
-                    </AlertDialogTitle>
-                    <AlertDialogDescription className="text-slate-300 font-bold text-base">
-                      Dispatch live GPS tracking to our safety response team? Use only in real emergencies.
-                    </AlertDialogDescription>
+                    <AlertDialogTitle className="flex items-center gap-3 text-2xl font-black uppercase text-red-500"><Siren className="w-8 h-8 animate-bounce" /> Confirm SOS</AlertDialogTitle>
+                    <AlertDialogDescription className="text-slate-300 font-bold text-base">Dispatch live GPS tracking to tactical response?</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter className="flex-col sm:flex-row gap-2">
                     <AlertDialogCancel className="bg-transparent border-2 border-white text-white font-black uppercase h-12 rounded-xl">Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={triggerGlobalSOS} className="bg-red-600 hover:bg-red-700 text-white font-black uppercase h-12 rounded-xl">
-                      {isSOSLoading ? <Loader2 className="animate-spin" /> : "Initiate SOS"}
-                    </AlertDialogAction>
+                    <AlertDialogAction onClick={triggerGlobalSOS} className="bg-red-600 hover:bg-red-700 text-white font-black uppercase h-12 rounded-xl">{isSOSLoading ? <Loader2 className="animate-spin" /> : "Initiate SOS"}</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
             </CardContent>
           </Card>
         </div>
-
-        <div className="flex items-center gap-2 text-muted-foreground text-sm font-semibold relative z-10 pt-4 pb-10">
-          <Fingerprint className="w-4 h-4 text-primary" />
-          <span className="uppercase tracking-[0.2em] text-[10px]">End-to-End Encrypted & Privacy Centric</span>
-        </div>
       </main>
     </div>
   );
 }
 
-function RoleCard({ 
-  href, 
-  icon, 
-  title, 
-  description, 
-  isRestricted = false,
-  isLoading = false,
-  subtext,
-  onClick 
-}: { 
-  href: string; 
-  icon: React.ReactNode; 
-  title: string; 
-  description: string;
-  isRestricted?: boolean;
-  isLoading?: boolean;
-  subtext?: string;
-  onClick?: () => void;
-}) {
+function RoleCard({ href, icon, title, description, isRestricted = false, isLoading = false, subtext, onClick }: { href: string; icon: React.ReactNode; title: string; description: string; isRestricted?: boolean; isLoading?: boolean; subtext?: string; onClick?: () => void; }) {
   return (
     <div className="relative group h-full">
-      <div className="relative h-full rounded-[1.25rem] border border-border p-2 md:p-3 transition-all">
-        <GlowingEffect
-          spread={40}
-          glow={true}
-          disabled={false}
-          proximity={64}
-          inactiveZone={0.01}
-          borderWidth={3}
-        />
-        <Link 
-          href={isRestricted || isLoading ? "#" : href} 
-          onClick={isRestricted || isLoading ? undefined : onClick}
-          className={cn(
-            "relative flex h-full flex-col justify-between overflow-hidden rounded-xl border bg-background p-6 shadow-sm transition-all group-hover:bg-slate-50/50",
-            (isRestricted || isLoading) && "opacity-60 grayscale cursor-not-allowed"
-          )}
-        >
+      <div className="relative h-full rounded-[1.25rem] border p-2 transition-all">
+        <GlowingEffect spread={40} glow={true} disabled={false} proximity={64} inactiveZone={0.01} borderWidth={3} />
+        <Link href={isRestricted || isLoading ? "#" : href} onClick={isRestricted || isLoading ? undefined : onClick} className={cn("relative flex h-full flex-col justify-between overflow-hidden rounded-xl border bg-background p-6 shadow-sm transition-all group-hover:bg-slate-50/50", (isRestricted || isLoading) && "opacity-60 grayscale cursor-not-allowed")}>
           <div className="space-y-4">
-            <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center transition-colors group-hover:bg-primary/10 group-hover:text-primary">
-              {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : icon}
-            </div>
+            <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center group-hover:bg-primary/10 group-hover:text-primary">{isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : icon}</div>
             <div className="space-y-1">
               <h3 className="text-2xl font-black tracking-tight uppercase">{title}</h3>
               <p className="text-muted-foreground font-medium text-sm">{description}</p>
             </div>
           </div>
-          {subtext && (
-            <div className="mt-4 pt-4 border-t border-dashed">
-              <p className={cn(
-                "text-[9px] font-black tracking-[0.2em] uppercase flex items-center gap-2",
-                isRestricted ? "text-destructive" : "text-teal-600"
-              )}>
-                {subtext}
-              </p>
-            </div>
-          )}
+          {subtext && <div className="mt-4 pt-4 border-t border-dashed"><p className={cn("text-[9px] font-black tracking-widest uppercase flex items-center gap-2", isRestricted ? "text-destructive" : "text-teal-600")}>{subtext}</p></div>}
         </Link>
       </div>
     </div>

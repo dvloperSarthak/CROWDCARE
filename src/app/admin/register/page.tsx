@@ -10,10 +10,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { UserPlus, CheckCircle2, Loader2, QrCode, Lock, ImagePlus, X, CloudUpload, Activity, Info } from 'lucide-react';
+import { UserPlus, CheckCircle2, Loader2, QrCode, Lock, ImagePlus, X, CloudUpload, Activity, Info, Sparkles } from 'lucide-react';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import Image from 'next/image';
+import { extractPhysicalDescription } from '@/ai/flows/extract-description-flow';
 
 export default function AdminRegister() {
   const { toast } = useToast();
@@ -23,6 +24,8 @@ export default function AdminRegister() {
   const [generatedId, setGeneratedId] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [description, setDescription] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const db = useFirestore();
@@ -33,19 +36,6 @@ export default function AdminRegister() {
 
   const isEmailUser = user && !user.isAnonymous;
   const isAdmin = !!adminRole || isEmailUser;
-  const isAuthenticatedGuardian = user && !user.isAnonymous;
-
-  useEffect(() => {
-    if (!isUserLoading && !loadingAdmin) {
-      if (!isAuthenticatedGuardian || !isAdmin) {
-        toast({
-          variant: "destructive",
-          title: "Access Denied",
-          description: "Guardian credentials required for registration protocols.",
-        });
-      }
-    }
-  }, [isAuthenticatedGuardian, isAdmin, isUserLoading, loadingAdmin, toast]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -53,6 +43,26 @@ export default function AdminRegister() {
       setSelectedFile(file);
       const url = URL.createObjectURL(file);
       setPreviewUrl(url);
+    }
+  };
+
+  const runAiVision = async () => {
+    if (!previewUrl || !selectedFile) return;
+    setIsExtracting(true);
+    try {
+      // Convert to base64 for Genkit
+      const reader = new FileReader();
+      reader.readAsDataURL(selectedFile);
+      reader.onload = async () => {
+        const dataUri = reader.result as string;
+        const result = await extractPhysicalDescription({ photoDataUri: dataUri });
+        setDescription(result.description);
+        toast({ title: "AI Vision Sync", description: "Physical profile extracted from photo." });
+        setIsExtracting(false);
+      };
+    } catch (e) {
+      toast({ variant: "destructive", title: "Vision Failure", description: "AI could not process the photo." });
+      setIsExtracting(false);
     }
   };
 
@@ -74,10 +84,9 @@ export default function AdminRegister() {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!isAuthenticatedGuardian || !isAdmin) return;
+    if (!isAdmin) return;
 
     setLoading(true);
-    
     const formData = new FormData(e.currentTarget);
     const id = `C${Math.floor(Math.random() * 9000) + 1000}`;
     setGeneratedId(id);
@@ -91,7 +100,7 @@ export default function AdminRegister() {
       id,
       childName: formData.get('name') as string,
       age: parseInt(formData.get('age') as string) || 0,
-      physicalDescription: formData.get('description') as string || '',
+      physicalDescription: description || formData.get('description') as string || '',
       parentName: formData.get('parentName') as string,
       parentMobileNumber: formData.get('parentPhone') as string,
       emergencyContactNumber: formData.get('emergencyContact') as string,
@@ -110,36 +119,24 @@ export default function AdminRegister() {
       setIsSuccess(true);
       toast({
         title: "Registry Updated",
-        description: `Guardian ID ${id} is now live on secure servers.`,
+        description: `Guardian ID ${id} is now live.`,
       });
-
-      setTimeout(() => {
-        router.push('/admin/children');
-      }, 2500);
+      setTimeout(() => router.push('/admin/children'), 2500);
     }, 1200);
   }
 
   if (isUserLoading || (loadingAdmin && !isEmailUser)) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center">
-        <Loader2 className="w-12 h-12 animate-spin text-primary mb-4" />
-        <p className="text-muted-foreground font-black uppercase tracking-widest text-xs">Authenticating Protocol...</p>
-      </div>
-    );
+    return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-primary" /></div>;
   }
 
-  if (!isAuthenticatedGuardian || !isAdmin) {
+  if (!isAdmin) {
     return (
       <div className="min-h-screen bg-background">
         <NavBar title="Restricted Area" backHref="/" />
         <main className="container max-w-md py-20 px-6 mx-auto text-center space-y-6">
-          <div className="mx-auto w-20 h-20 bg-destructive/10 rounded-full flex items-center justify-center">
-            <Lock className="w-10 h-10 text-destructive" />
-          </div>
-          <h2 className="text-2xl font-black text-slate-900 uppercase">Guardian Access Only</h2>
-          <Button className="w-full h-12 font-bold" onClick={() => router.push('/login')}>
-            Guardian Login
-          </Button>
+          <Lock className="w-20 h-20 text-destructive mx-auto" />
+          <h2 className="text-2xl font-black uppercase">Guardian Access Only</h2>
+          <Button className="w-full h-12 font-bold" onClick={() => router.push('/login')}>Guardian Login</Button>
         </main>
       </div>
     );
@@ -150,17 +147,15 @@ export default function AdminRegister() {
       <div className="min-h-screen bg-background flex flex-col">
         <NavBar title="Registration Complete" />
         <main className="flex-1 flex items-center justify-center p-6">
-          <Card className="max-w-md w-full border-4 border-teal-500 shadow-2xl animate-success-pop p-8 text-center space-y-6">
-            <div className="mx-auto w-24 h-24 bg-teal-100 rounded-full flex items-center justify-center">
-               <CheckCircle2 className="w-16 h-16 text-teal-600" />
-            </div>
+          <Card className="max-w-md w-full border-4 border-teal-500 p-8 text-center space-y-6 animate-success-pop">
+            <CheckCircle2 className="w-16 h-16 text-teal-600 mx-auto" />
             <div className="space-y-2">
-              <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">Registered</h2>
-              <p className="text-muted-foreground font-medium">Guardian ID generated successfully</p>
+              <h2 className="text-3xl font-black uppercase tracking-tighter">Registered</h2>
+              <p className="text-muted-foreground">Guardian ID generated successfully</p>
             </div>
             <div className="bg-slate-100 p-6 rounded-xl border-2 border-dashed border-slate-300">
-               <p className="text-[10px] font-black text-slate-500 uppercase mb-1 tracking-widest">Active Guardian ID</p>
-               <p className="text-5xl font-black text-primary tracking-tighter">{generatedId}</p>
+               <p className="text-[10px] font-black text-slate-500 uppercase mb-1">Active Guardian ID</p>
+               <p className="text-5xl font-black text-primary">{generatedId}</p>
             </div>
           </Card>
         </main>
@@ -173,17 +168,14 @@ export default function AdminRegister() {
       <NavBar title="Child Registration" backHref="/admin/children" />
       <main className="container max-w-2xl py-8 px-6 mx-auto">
         <Card className="shadow-lg border-2">
-          <CardHeader className="space-y-1">
-            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-2">
-              <UserPlus className="w-6 h-6 text-primary" />
-            </div>
-            <CardTitle className="text-2xl font-black uppercase tracking-tight">Register New ID</CardTitle>
+          <CardHeader>
+            <CardTitle className="text-2xl font-black uppercase">Register New ID</CardTitle>
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-6">
               <div className="flex flex-col items-center gap-4 py-4">
                 <div 
-                  className="w-32 h-32 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center relative overflow-hidden group cursor-pointer"
+                  className="w-32 h-32 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center relative overflow-hidden group cursor-pointer shadow-inner"
                   onClick={() => fileInputRef.current?.click()}
                 >
                   {previewUrl ? (
@@ -192,72 +184,75 @@ export default function AdminRegister() {
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <CloudUpload className="w-8 h-8 text-white" />
                       </div>
-                      <Button 
-                        type="button" 
-                        size="icon" 
-                        variant="destructive" 
-                        className="absolute top-1 right-1 w-6 h-6 rounded-full z-10"
-                        onClick={(e) => { 
-                          e.stopPropagation(); 
-                          setSelectedFile(null);
-                          setPreviewUrl(null); 
-                        }}
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
                     </>
                   ) : (
                     <div className="flex flex-col items-center gap-2 text-slate-400">
                       <ImagePlus className="w-8 h-8" />
-                      <span className="text-[10px] font-black uppercase tracking-widest">Add Photo</span>
+                      <span className="text-[10px] font-black uppercase">Add Photo</span>
                     </div>
                   )}
                 </div>
+                {previewUrl && (
+                  <Button 
+                    type="button" 
+                    variant="secondary" 
+                    size="sm" 
+                    className="h-8 font-black uppercase text-[10px]" 
+                    onClick={runAiVision}
+                    disabled={isExtracting}
+                  >
+                    {isExtracting ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Sparkles className="w-3 h-3 mr-2" />}
+                    AI Vision Description
+                  </Button>
+                )}
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="md:col-span-3 grid gap-2">
-                  <Label htmlFor="name" className="text-xs uppercase font-black tracking-widest">Child's Full Name</Label>
-                  <Input id="name" name="name" placeholder="Enter child's name" className="h-12 text-lg font-bold" required />
+                  <Label htmlFor="name" className="text-xs uppercase font-black">Child's Full Name</Label>
+                  <Input id="name" name="name" placeholder="Enter name" className="h-12 text-lg font-bold" required />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="age" className="text-xs uppercase font-black tracking-widest">Age</Label>
+                  <Label htmlFor="age" className="text-xs uppercase font-black">Age</Label>
                   <Input id="age" name="age" type="number" placeholder="0" className="h-12 text-lg font-bold" required />
                 </div>
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="description" className="text-xs uppercase font-black tracking-widest flex items-center gap-2">
-                   <Info className="w-3 h-3 text-primary" /> Physical Description
+                <Label htmlFor="description" className="text-xs uppercase font-black flex items-center gap-2">
+                   <Info className="w-3 h-3" /> Physical Description
                 </Label>
-                <Textarea id="description" name="description" placeholder="e.g., Blonde hair, wearing a red dinosaur t-shirt, blue shorts..." className="min-h-[80px] font-medium" />
+                <Textarea 
+                  id="description" 
+                  name="description" 
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="e.g., Blonde hair, red t-shirt..." 
+                  className="min-h-[80px]" 
+                />
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="medical" className="text-xs uppercase font-black tracking-widest flex items-center gap-2">
-                  <Activity className="w-3 h-3 text-red-500" /> Medical Alerts / Requirements
+                <Label htmlFor="medical" className="text-xs uppercase font-black flex items-center gap-2">
+                  <Activity className="w-3 h-3 text-red-500" /> Medical Alerts
                 </Label>
-                <Textarea id="medical" name="medical" placeholder="List any allergies, medications, or special needs..." className="min-h-[100px] font-medium" />
+                <Textarea id="medical" name="medical" placeholder="Allergies, etc..." className="min-h-[80px]" />
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="parentName" className="text-xs uppercase font-black tracking-widest">Parent / Guardian Name</Label>
-                <Input id="parentName" name="parentName" placeholder="Enter parent's name" className="h-12" required />
-              </div>
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="grid gap-2">
-                  <Label htmlFor="parentPhone" className="text-xs uppercase font-black tracking-widest">Primary Mobile</Label>
-                  <Input id="parentPhone" name="parentPhone" type="tel" placeholder="+1 (555) 000-0000" className="h-12" required />
+                  <Label htmlFor="parentName" className="text-xs uppercase font-black">Parent Name</Label>
+                  <Input id="parentName" name="parentName" className="h-12" required />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="emergencyContact" className="text-xs uppercase font-black tracking-widest">Secondary Phone</Label>
-                  <Input id="emergencyContact" name="emergencyContact" type="tel" placeholder="+1 (555) 000-0000" className="h-12" />
+                  <Label htmlFor="parentPhone" className="text-xs uppercase font-black">Mobile</Label>
+                  <Input id="parentPhone" name="parentPhone" className="h-12" required />
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="pt-4">
-              <Button type="submit" className="w-full text-xl h-14 font-black tracking-widest shadow-lg uppercase" disabled={loading}>
+            <CardFooter>
+              <Button type="submit" className="w-full text-xl h-14 font-black uppercase" disabled={loading}>
                 {loading ? <Loader2 className="mr-2 animate-spin" /> : <><QrCode className="mr-2 w-6 h-6" /> Generate ID</>}
               </Button>
             </CardFooter>
