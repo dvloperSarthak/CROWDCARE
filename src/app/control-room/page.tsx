@@ -7,8 +7,9 @@ import { NavBar } from '@/components/nav-bar';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { AlertCircle, Check, User, Clock, Loader2, Sparkles, ShieldAlert, Phone, PhoneCall, Navigation, ExternalLink, LocateFixed, Map as MapIcon, BellRing, Camera, AlertTriangle } from 'lucide-react';
+import { AlertCircle, Check, User, Clock, Loader2, Sparkles, ShieldAlert, Phone, PhoneCall, Navigation, ExternalLink, LocateFixed, Map as MapIcon, BellRing, Camera, AlertTriangle, Lock, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { detectDuplicateRescueAlert } from '@/ai/flows/duplicate-rescue-detection-flow';
 import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useUser, setDocumentNonBlocking } from '@/firebase';
@@ -28,12 +29,15 @@ const TacticalMap = dynamic(() => import('@/components/tactical-map'), {
 export default function ControlRoom() {
   const { toast } = useToast();
   const db = useFirestore();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   
-  const alertsRef = useMemoFirebase(() => user ? collection(db, 'rescueEvents') : null, [db, user]);
+  const [passcode, setPasscode] = useState('');
+  const [isAuthorized, setIsAuthorized] = useState(false);
+
+  const alertsRef = useMemoFirebase(() => user && isAuthorized ? collection(db, 'rescueEvents') : null, [db, user, isAuthorized]);
   const { data: alerts, isLoading: loadingAlerts } = useCollection(alertsRef);
   
-  const childrenRef = useMemoFirebase(() => user ? collection(db, 'children') : null, [db, user]);
+  const childrenRef = useMemoFirebase(() => user && isAuthorized ? collection(db, 'children') : null, [db, user, isAuthorized]);
   const { data: children } = useCollection(childrenRef);
 
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
@@ -74,6 +78,17 @@ export default function ControlRoom() {
       }
     }
   }, [alerts, notificationPermission, toast]);
+
+  const handleAuth = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passcode === '2411') {
+      setIsAuthorized(true);
+      toast({ title: "ACCESS GRANTED", description: "Node authorized. Tactical link established." });
+    } else {
+      toast({ variant: "destructive", title: "ACCESS DENIED", description: "Invalid Command Passcode." });
+      setPasscode('');
+    }
+  };
 
   const handleSelectAlert = (alertId: string) => {
     setSelectedAlertId(alertId);
@@ -147,6 +162,57 @@ export default function ControlRoom() {
     toast({ title: "MISSION RESOLVED", description: "Child cleared from active SITREP." });
     setSelectedAlertId(null);
   };
+
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col">
+        <NavBar title="Command Authentication" backHref="/" />
+        <main className="flex-1 flex items-center justify-center p-6">
+          <Card className="max-w-md w-full border-4 border-primary shadow-[0_0_50px_rgba(255,119,51,0.3)] p-8 space-y-8 bg-slate-900 text-white rounded-[2rem]">
+            <div className="flex flex-col items-center gap-6 text-center">
+              <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center border-4 border-primary animate-pulse shadow-[0_0_20px_rgba(255,119,51,0.5)]">
+                <Lock className="w-10 h-10 text-primary" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-3xl font-black uppercase tracking-tighter">Control Room</h2>
+                <div className="flex items-center justify-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-primary" />
+                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em]">Guardian Access Restricted</p>
+                </div>
+              </div>
+            </div>
+            
+            <form onSubmit={handleAuth} className="space-y-6">
+              <div className="space-y-2">
+                <p className="text-center text-[9px] font-black text-slate-500 uppercase tracking-widest">Enter Command Passcode</p>
+                <Input 
+                  type="password" 
+                  placeholder="****" 
+                  className="h-16 text-center text-4xl font-black tracking-[0.5em] bg-slate-800 border-slate-700 text-white placeholder:text-slate-700 focus:ring-primary focus:border-primary rounded-xl"
+                  value={passcode}
+                  onChange={(e) => setPasscode(e.target.value)}
+                  maxLength={4}
+                  autoFocus
+                />
+              </div>
+              <Button type="submit" className="w-full h-14 text-lg font-black uppercase tracking-widest shadow-xl bg-primary hover:bg-primary/90">
+                Authenticate Node
+              </Button>
+            </form>
+
+            <div className="pt-4 flex flex-col items-center gap-4">
+               <div className="flex items-center gap-2 text-[9px] font-black text-slate-500 uppercase">
+                 <ShieldCheck className="w-3 h-3" /> Encrypted Session
+               </div>
+               <Button variant="ghost" className="text-slate-400 font-black uppercase text-[10px] hover:text-white" asChild>
+                  <a href="/">Abort and Return</a>
+               </Button>
+            </div>
+          </Card>
+        </main>
+      </div>
+    );
+  }
 
   const activeAlerts = alerts?.filter(a => a.status !== 'Child Reunited') || [];
 
