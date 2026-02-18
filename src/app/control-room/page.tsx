@@ -9,13 +9,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { AlertCircle, Check, User, Clock, Loader2, Sparkles, ShieldAlert, Phone, PhoneCall, Navigation, ExternalLink, LocateFixed, Map as MapIcon, BellRing, Camera, AlertTriangle, Lock, ShieldCheck, BarChart3, History, Volume2, VolumeX } from 'lucide-react';
+import { AlertCircle, Check, User, Clock, Loader2, Sparkles, ShieldAlert, Phone, PhoneCall, Navigation, ExternalLink, LocateFixed, Map as MapIcon, BellRing, Camera, AlertTriangle, Lock, ShieldCheck, BarChart3, History, Volume2, VolumeX, Flame, Siren } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { detectDuplicateRescueAlert } from '@/ai/flows/duplicate-rescue-detection-flow';
 import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useUser, setDocumentNonBlocking } from '@/firebase';
 import { collection, doc, query, orderBy } from 'firebase/firestore';
 import Image from 'next/image';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
+import { cn } from '@/lib/utils';
 
 // Dynamically import map to avoid SSR issues with Leaflet
 const TacticalMap = dynamic(() => import('@/components/tactical-map'), { 
@@ -63,8 +64,11 @@ export default function ControlRoom() {
       const latest = [...alerts].sort((a, b) => new Date(b.scanTime).getTime() - new Date(a.scanTime).getTime())[0];
       const isRecent = (Date.now() - new Date(latest.scanTime).getTime() < 5000);
       
-      if (latest.status === 'Scanned' && isRecent) {
-        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+      if ((latest.status === 'Scanned' || latest.status === 'SOS') && isRecent) {
+        const soundUrl = latest.status === 'SOS' 
+          ? 'https://assets.mixkit.co/active_storage/sfx/2857/2857-preview.mp3' // Siren sound
+          : 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'; // Standard ping
+        const audio = new Audio(soundUrl);
         audio.play().catch(() => {});
       }
     }
@@ -84,16 +88,17 @@ export default function ControlRoom() {
       const latest = [...alerts].sort((a, b) => new Date(b.scanTime).getTime() - new Date(a.scanTime).getTime())[0];
       const isRecent = (Date.now() - new Date(latest.scanTime).getTime() < 8000);
       
-      if (latest.status === 'Scanned' && isRecent) {
+      if ((latest.status === 'Scanned' || latest.status === 'SOS') && isRecent) {
         toast({
-          title: "SITREP: NEW ALERT",
-          description: `ID ${latest.childId} detected. Live tracking established.`,
-          className: "bg-primary text-white font-black"
+          title: latest.status === 'SOS' ? "CRITICAL SOS ALERT" : "SITREP: NEW ALERT",
+          description: latest.status === 'SOS' ? "Volunteer panic signal detected. Respond immediately." : `ID ${latest.childId} detected. Live tracking established.`,
+          variant: latest.status === 'SOS' ? "destructive" : "default",
+          className: cn("font-black", latest.status === 'SOS' ? "animate-pulse" : "bg-primary text-white")
         });
 
         if (notificationPermission === 'granted') {
-          new Notification("Guardian Alert: Child Located", {
-            body: `Incident ${latest.id} (Child ${latest.childId}) is active. Tracking established.`,
+          new Notification(latest.status === 'SOS' ? "URGENT: SOS SIGNAL" : "Guardian Alert: Child Located", {
+            body: latest.status === 'SOS' ? "A volunteer has triggered an SOS panic signal." : `Incident ${latest.id} (Child ${latest.childId}) is active.`,
             tag: latest.id
           });
         }
@@ -102,17 +107,19 @@ export default function ControlRoom() {
   }, [alerts, notificationPermission, toast]);
 
   const stats = useMemo(() => {
-    if (!alerts || !children) return { active: 0, resolved: 0, total: 0 };
+    if (!alerts || !children) return { active: 0, resolved: 0, total: 0, sos: 0 };
     return {
-      active: alerts.filter(a => a.status !== 'Child Reunited').length,
+      active: alerts.filter(a => a.status !== 'Child Reunited' && a.status !== 'SOS').length,
       resolved: alerts.filter(a => a.status === 'Child Reunited').length,
-      total: children.length
+      total: children.length,
+      sos: alerts.filter(a => a.status === 'SOS').length
     };
   }, [alerts, children]);
 
   const chartData = [
     { name: 'Active', value: stats.active, color: '#FF7733' },
     { name: 'Resolved', value: stats.resolved, color: '#33FFD1' },
+    { name: 'SOS', value: stats.sos, color: '#EF4444' },
   ];
 
   const handleAuth = (e: React.FormEvent) => {
@@ -131,7 +138,7 @@ export default function ControlRoom() {
     const alert = alerts?.find(a => a.id === alertId);
     if (alert) {
       setMapCenter([alert.locationLatitude, alert.locationLongitude]);
-      if (alert.isDuplicate === undefined || alert.isDuplicate === false) {
+      if (alert.status !== 'SOS' && (alert.isDuplicate === undefined || alert.isDuplicate === false)) {
         checkDuplicate(alert);
       }
     }
@@ -140,7 +147,7 @@ export default function ControlRoom() {
   const checkDuplicate = async (newAlert: any) => {
     try {
       const recentAlerts = (alerts || [])
-        .filter(a => a.id !== newAlert.id)
+        .filter(a => a.id !== newAlert.id && a.status !== 'SOS')
         .map(a => ({
           alertId: a.id,
           childId: a.childId,
@@ -190,6 +197,13 @@ export default function ControlRoom() {
     const alertRef = doc(db, 'rescueEvents', alertId);
     updateDocumentNonBlocking(alertRef, { status: 'Child Reunited', resolvedTime: new Date().toISOString(), statusUpdateTime: new Date().toISOString() });
     toast({ title: "MISSION RESOLVED", description: "Child cleared from active SITREP." });
+    setSelectedAlertId(null);
+  };
+
+  const clearSOS = (alertId: string) => {
+    const alertRef = doc(db, 'rescueEvents', alertId);
+    updateDocumentNonBlocking(alertRef, { status: 'Resolved', resolvedTime: new Date().toISOString(), statusUpdateTime: new Date().toISOString() });
+    toast({ title: "SOS RESOLVED", description: "Emergency cleared." });
     setSelectedAlertId(null);
   };
 
@@ -244,7 +258,17 @@ export default function ControlRoom() {
     );
   }
 
-  const activeAlerts = alerts?.filter(a => a.status !== 'Child Reunited') || [];
+  const activeAlerts = useMemo(() => {
+    if (!alerts) return [];
+    return [...alerts]
+      .filter(a => a.status !== 'Child Reunited' && a.status !== 'Resolved')
+      .sort((a, b) => {
+        // SOS always at the top
+        if (a.status === 'SOS' && b.status !== 'SOS') return -1;
+        if (a.status !== 'SOS' && b.status === 'SOS') return 1;
+        return new Date(b.scanTime).getTime() - new Date(a.scanTime).getTime();
+      });
+  }, [alerts]);
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -254,14 +278,15 @@ export default function ControlRoom() {
         
         {/* Stats Row */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card className="border-l-8 border-l-primary bg-white shadow-md">
+          <Card className={cn("border-l-8 bg-white shadow-md transition-colors", stats.sos > 0 ? "border-l-red-600 bg-red-50" : "border-l-primary")}>
             <CardContent className="p-6 flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Active SITREPs</p>
                 <h3 className="text-4xl font-black text-slate-900">{stats.active}</h3>
+                {stats.sos > 0 && <p className="text-[10px] font-black text-red-600 animate-pulse mt-1">INC. {stats.sos} EMERGENCY SOS</p>}
               </div>
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                <ShieldAlert className="w-6 h-6 text-primary" />
+              <div className={cn("w-12 h-12 rounded-full flex items-center justify-center", stats.sos > 0 ? "bg-red-100 animate-pulse" : "bg-primary/10")}>
+                {stats.sos > 0 ? <Siren className="w-6 h-6 text-red-600" /> : <ShieldAlert className="w-6 h-6 text-primary" />}
               </div>
             </CardContent>
           </Card>
@@ -366,17 +391,25 @@ export default function ControlRoom() {
                       <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground italic font-medium tracking-widest text-xs uppercase">All zones clear</TableCell></TableRow>
                     ) : (
                       activeAlerts.map((alert) => (
-                        <TableRow key={alert.id} className={`cursor-pointer ${selectedAlertId === alert.id ? 'bg-primary/10' : ''}`} onClick={() => handleSelectAlert(alert.id)}>
-                          <TableCell className="font-black text-primary">
+                        <TableRow 
+                          key={alert.id} 
+                          className={cn(
+                            "cursor-pointer transition-colors", 
+                            selectedAlertId === alert.id ? 'bg-primary/10' : '',
+                            alert.status === 'SOS' ? 'bg-red-50 hover:bg-red-100 border-l-4 border-l-red-600' : ''
+                          )} 
+                          onClick={() => handleSelectAlert(alert.id)}
+                        >
+                          <TableCell className={cn("font-black", alert.status === 'SOS' ? "text-red-600" : "text-primary")}>
                             <div className="flex items-center gap-2">
-                              {alert.isDuplicate && <AlertTriangle className="w-3 h-3 text-destructive animate-pulse" />}
+                              {alert.status === 'SOS' && <Siren className="w-4 h-4 animate-pulse" />}
                               {alert.childId}
                             </div>
                           </TableCell>
                           <TableCell className="font-mono text-[10px] font-bold">
                             {alert.locationLatitude.toFixed(6)}, {alert.locationLongitude.toFixed(6)}
                           </TableCell>
-                          <TableCell><Badge className="text-[9px] font-black uppercase" variant={alert.isDuplicate ? "destructive" : "default"}>{alert.status}</Badge></TableCell>
+                          <TableCell><Badge className="text-[9px] font-black uppercase" variant={alert.status === 'SOS' ? "destructive" : (alert.isDuplicate ? "destructive" : "default")}>{alert.status}</Badge></TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
                               <Button size="sm" variant="ghost" className="h-7 text-[9px] font-black uppercase hover:bg-primary/10" onClick={(e) => { e.stopPropagation(); setMapCenter([alert.locationLatitude, alert.locationLongitude]); setSelectedAlertId(alert.id); }}>
@@ -399,15 +432,32 @@ export default function ControlRoom() {
           </div>
 
           <div className="lg:col-span-4 space-y-6">
-            <Card className={`shadow-2xl border-4 transition-all duration-500 ${!selectedAlert ? 'opacity-40 grayscale pointer-events-none scale-95 origin-top' : 'opacity-100 scale-100'}`}>
-              <CardHeader className="bg-slate-900 text-white rounded-t-lg border-b-4 border-primary p-4">
-                <CardTitle className="flex items-center gap-2 text-md uppercase font-black tracking-tight"><ShieldAlert className="w-5 h-5 text-primary" />SITREP Detail</CardTitle>
+            <Card className={cn(
+              "shadow-2xl border-4 transition-all duration-500", 
+              !selectedAlert ? 'opacity-40 grayscale pointer-events-none scale-95 origin-top' : 'opacity-100 scale-100',
+              selectedAlert?.status === 'SOS' ? 'border-red-600' : ''
+            )}>
+              <CardHeader className={cn("text-white rounded-t-lg border-b-4 p-4", selectedAlert?.status === 'SOS' ? "bg-red-700 border-red-900" : "bg-slate-900 border-primary")}>
+                <CardTitle className="flex items-center gap-2 text-md uppercase font-black tracking-tight">
+                  {selectedAlert?.status === 'SOS' ? <Siren className="w-5 h-5 animate-pulse" /> : <ShieldAlert className="w-5 h-5 text-primary" />}
+                  {selectedAlert?.status === 'SOS' ? "CRITICAL EMERGENCY" : "SITREP Detail"}
+                </CardTitle>
               </CardHeader>
               <CardContent className="pt-6 space-y-6">
                 {selectedAlert ? (
                   <>
+                    {selectedAlert.status === 'SOS' && (
+                      <div className="bg-red-100 border-2 border-red-600 p-4 rounded-xl flex items-start gap-3 animate-pulse">
+                        <Siren className="w-6 h-6 text-red-600 shrink-0" />
+                        <div className="space-y-1">
+                          <p className="text-[12px] font-black text-red-900 uppercase tracking-widest">IMMEDIATE SOS RESPONSE</p>
+                          <p className="text-[10px] font-bold text-red-700 leading-tight">Volunteer has triggered a panic signal. GPS tracking is live. Dispatch response team to coordinates.</p>
+                        </div>
+                      </div>
+                    )}
+
                     {selectedAlert.isDuplicate && (
-                      <div className="bg-destructive/10 border-2 border-destructive p-3 rounded-xl flex items-start gap-3 animate-pulse">
+                      <div className="bg-destructive/10 border-2 border-destructive p-3 rounded-xl flex items-start gap-3">
                         <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
                         <div className="space-y-1">
                           <p className="text-[10px] font-black text-destructive uppercase tracking-widest">Duplicate Incident Detected</p>
@@ -416,16 +466,18 @@ export default function ControlRoom() {
                       </div>
                     )}
 
-                    <div className="flex gap-4 items-start">
-                      <div className="w-24 h-24 rounded-xl border-4 border-primary overflow-hidden relative shadow-lg bg-slate-100 shrink-0">
-                        {relatedChild?.photoUrl ? <Image src={relatedChild.photoUrl} alt={relatedChild.childName} fill className="object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><User className="w-12 h-12" /></div>}
+                    {selectedAlert.status !== 'SOS' && (
+                      <div className="flex gap-4 items-start">
+                        <div className="w-24 h-24 rounded-xl border-4 border-primary overflow-hidden relative shadow-lg bg-slate-100 shrink-0">
+                          {relatedChild?.photoUrl ? <Image src={relatedChild.photoUrl} alt={relatedChild.childName} fill className="object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><User className="w-12 h-12" /></div>}
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Incident Target</p>
+                          <h3 className="text-2xl font-black text-primary tracking-tighter">{selectedAlert.childId}</h3>
+                          <p className="font-black text-slate-900 text-sm uppercase">{relatedChild?.childName || 'Identity Check Required'}</p>
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Incident Target</p>
-                        <h3 className="text-2xl font-black text-primary tracking-tighter">{selectedAlert.childId}</h3>
-                        <p className="font-black text-slate-900 text-sm uppercase">{relatedChild?.childName || 'Identity Check Required'}</p>
-                      </div>
-                    </div>
+                    )}
 
                     {selectedAlert.statusPhotoUrl && (
                       <div className="space-y-2">
@@ -436,29 +488,32 @@ export default function ControlRoom() {
                       </div>
                     )}
 
-                    {/* Notification History */}
-                    <div className="space-y-3">
-                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2"><History className="w-3 h-3 text-teal-500" /> Notification History</p>
-                      <div className="max-h-32 overflow-y-auto space-y-2 pr-2">
-                        {notificationLogs && notificationLogs.length > 0 ? (
-                          notificationLogs.map(log => (
-                            <div key={log.id} className="bg-slate-50 border rounded-lg p-2 text-[10px]">
-                              <div className="flex justify-between items-center mb-1">
-                                <span className="font-black text-teal-600">{log.deliveryStatus}</span>
-                                <span className="text-slate-400 font-bold">{new Date(log.sentTime).toLocaleTimeString()}</span>
+                    {selectedAlert.status !== 'SOS' && (
+                      <div className="space-y-3">
+                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2"><History className="w-3 h-3 text-teal-500" /> Notification History</p>
+                        <div className="max-h-32 overflow-y-auto space-y-2 pr-2">
+                          {notificationLogs && notificationLogs.length > 0 ? (
+                            notificationLogs.map(log => (
+                              <div key={log.id} className="bg-slate-50 border rounded-lg p-2 text-[10px]">
+                                <div className="flex justify-between items-center mb-1">
+                                  <span className="font-black text-teal-600">{log.deliveryStatus}</span>
+                                  <span className="text-slate-400 font-bold">{new Date(log.sentTime).toLocaleTimeString()}</span>
+                                </div>
+                                <p className="text-slate-700 leading-tight">{log.messageBody}</p>
                               </div>
-                              <p className="text-slate-700 leading-tight">{log.messageBody}</p>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-[10px] italic text-slate-400">No notifications dispatched.</p>
-                        )}
+                            ))
+                          ) : (
+                            <p className="text-[10px] italic text-slate-400">No notifications dispatched.</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
-                    <div className="p-4 bg-slate-900 rounded-xl border-2 border-primary/20 space-y-3 shadow-inner">
+                    <div className={cn("p-4 rounded-xl border-2 space-y-3 shadow-inner", selectedAlert.status === 'SOS' ? "bg-red-950 border-red-800" : "bg-slate-900 border-primary/20")}>
                       <div className="flex items-center justify-between">
-                        <h4 className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3 animate-pulse" /> Live Telemetry</h4>
+                        <h4 className={cn("text-[10px] font-black uppercase tracking-widest flex items-center gap-2", selectedAlert.status === 'SOS' ? "text-red-400" : "text-primary")}>
+                          <Navigation className="w-3 h-3 animate-pulse" /> Live Telemetry
+                        </h4>
                       </div>
                       <div className="w-full h-32 rounded-lg overflow-hidden border-2 border-slate-700 shadow-xl">
                         <iframe
@@ -472,30 +527,51 @@ export default function ControlRoom() {
                       </div>
                     </div>
 
-                    <div className="p-4 bg-teal-50 border-2 border-teal-100 rounded-xl space-y-3">
-                      <div className="flex justify-between items-start">
-                        <div className="space-y-1">
-                          <h4 className="text-[9px] font-black text-teal-900 uppercase tracking-widest flex items-center gap-2"><Phone className="w-3 h-3" /> Contact Command</h4>
-                          <p className="font-black text-teal-950 text-md uppercase leading-tight">{relatedChild?.parentName || 'DATA RESTRICTED'}</p>
-                          <p className="text-xl font-black text-teal-600 tracking-tighter">{relatedChild?.parentMobileNumber || '--- --- ----'}</p>
+                    {selectedAlert.status !== 'SOS' ? (
+                      <div className="p-4 bg-teal-50 border-2 border-teal-100 rounded-xl space-y-3">
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-1">
+                            <h4 className="text-[9px] font-black text-teal-900 uppercase tracking-widest flex items-center gap-2"><Phone className="w-3 h-3" /> Contact Command</h4>
+                            <p className="font-black text-teal-950 text-md uppercase leading-tight">{relatedChild?.parentName || 'DATA RESTRICTED'}</p>
+                            <p className="text-xl font-black text-teal-600 tracking-tighter">{relatedChild?.parentMobileNumber || '--- --- ----'}</p>
+                          </div>
+                          {relatedChild?.parentMobileNumber && (
+                            <Button size="sm" variant="secondary" asChild className="bg-teal-600 hover:bg-teal-700 text-white font-black uppercase text-[10px] h-10 px-4 shadow-lg">
+                              <a href={`tel:${relatedChild.parentMobileNumber}`}>
+                                <PhoneCall className="w-4 h-4 mr-2" /> Call Parent
+                              </a>
+                            </Button>
+                          )}
                         </div>
-                        {relatedChild?.parentMobileNumber && (
-                          <Button size="sm" variant="secondary" asChild className="bg-teal-600 hover:bg-teal-700 text-white font-black uppercase text-[10px] h-10 px-4 shadow-lg">
-                            <a href={`tel:${relatedChild.parentMobileNumber}`}>
-                              <PhoneCall className="w-4 h-4 mr-2" /> Call Parent
+                      </div>
+                    ) : (
+                      <div className="p-4 bg-red-900 border-2 border-red-700 rounded-xl space-y-3">
+                        <div className="flex flex-col gap-3">
+                          <p className="text-[10px] font-black text-red-200 uppercase tracking-widest">Emergency Tactical Contact</p>
+                          <Button size="lg" className="w-full bg-white text-red-600 hover:bg-red-50 font-black uppercase tracking-widest h-14" asChild>
+                            <a href={`tel:911`}>
+                              <PhoneCall className="w-5 h-5 mr-3" /> Call Emergency (911)
                             </a>
                           </Button>
-                        )}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     <div className="pt-4 border-t-2 space-y-3">
-                      <Button className="w-full h-14 text-lg font-black uppercase tracking-widest bg-teal-600 hover:bg-teal-700 shadow-lg" disabled={selectedAlert.status !== 'Scanned'} onClick={() => notifyParent(selectedAlert.id)}>
-                        Notify Parent
-                      </Button>
-                      <Button className="w-full h-14 text-lg font-black uppercase tracking-widest" variant="outline" disabled={selectedAlert.status !== 'Parent Notified'} onClick={() => resolveRescue(selectedAlert.id)}>
-                        Resolve & Clear
-                      </Button>
+                      {selectedAlert.status === 'SOS' ? (
+                        <Button className="w-full h-14 text-lg font-black uppercase tracking-widest bg-red-600 hover:bg-red-700 shadow-lg" onClick={() => clearSOS(selectedAlert.id)}>
+                          Clear SOS Mode
+                        </Button>
+                      ) : (
+                        <>
+                          <Button className="w-full h-14 text-lg font-black uppercase tracking-widest bg-teal-600 hover:bg-teal-700 shadow-lg" disabled={selectedAlert.status !== 'Scanned'} onClick={() => notifyParent(selectedAlert.id)}>
+                            Notify Parent
+                          </Button>
+                          <Button className="w-full h-14 text-lg font-black uppercase tracking-widest" variant="outline" disabled={selectedAlert.status !== 'Parent Notified'} onClick={() => resolveRescue(selectedAlert.id)}>
+                            Resolve & Clear
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </>
                 ) : (

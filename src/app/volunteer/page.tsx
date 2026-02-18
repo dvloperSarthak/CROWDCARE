@@ -7,7 +7,6 @@ import { NavBar } from '@/components/nav-bar';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -41,7 +40,9 @@ import {
   Clock,
   CircleStop,
   History,
-  Trophy
+  Trophy,
+  ShieldAlert,
+  Flame
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking, updateDocumentNonBlocking, useAuth, initiateAnonymousSignIn, useCollection } from '@/firebase';
@@ -69,6 +70,7 @@ export default function VolunteerApp() {
   const [statusFile, setStatusFile] = useState<File | null>(null);
   const [statusPreview, setStatusPreview] = useState<string | null>(null);
   const [showReminder, setShowReminder] = useState(false);
+  const [isSOSMode, setIsSOSMode] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -259,8 +261,10 @@ export default function VolunteerApp() {
     }
   }
 
-  const handleRescue = async () => {
-    if (!scannedId || !user || !currentCoords) return;
+  const handleRescue = async (isSOS: boolean = false) => {
+    if (!user || !currentCoords) return;
+    if (!scannedId && !isSOS) return;
+
     setIsDispatching(true);
     
     let finalStatusPhotoUrl = null;
@@ -268,19 +272,20 @@ export default function VolunteerApp() {
       finalStatusPhotoUrl = await uploadToImgBB(statusFile);
     }
 
-    const alertId = `A-${Date.now()}`;
+    const alertId = isSOS ? `SOS-${Date.now()}` : `A-${Date.now()}`;
     const newAlert = {
       id: alertId,
-      childId: scannedId,
+      childId: isSOS ? 'EMERGENCY_SOS' : scannedId,
       volunteerId: user.uid,
       locationLatitude: currentCoords.lat, 
       locationLongitude: currentCoords.lng,
       scanTime: new Date().toISOString(),
-      status: 'Scanned',
+      status: isSOS ? 'SOS' : 'Scanned',
       statusUpdateTime: new Date().toISOString(),
       isDuplicate: false,
       statusPhotoUrl: finalStatusPhotoUrl,
-      notes: finalStatusPhotoUrl ? `Status Photo attached.` : 'Standard alert.',
+      notes: isSOS ? 'IMMEDIATE VOLUNTEER SOS - EMERGENCY ASSISTANCE REQUIRED' : (finalStatusPhotoUrl ? `Status Photo attached.` : 'Standard alert.'),
+      isSOS: isSOS
     };
 
     const alertRef = doc(db, 'rescueEvents', alertId);
@@ -290,7 +295,12 @@ export default function VolunteerApp() {
       setActiveAlertId(alertId);
       setIsDispatching(false);
       setIsSent(true);
-      toast({ title: "SITREP LIVE", description: "Broadcasting situational telemetry." });
+      setIsSOSMode(isSOS);
+      toast({ 
+        title: isSOS ? "SOS BROADCAST LIVE" : "SITREP LIVE", 
+        description: isSOS ? "Control Room alerted. Stay in safe location." : "Broadcasting situational telemetry.",
+        variant: isSOS ? "destructive" : "default"
+      });
     }, 1200);
   };
 
@@ -302,6 +312,7 @@ export default function VolunteerApp() {
     setStatusFile(null); 
     setStatusPreview(null);
     setShowReminder(false);
+    setIsSOSMode(false);
     toast({ title: "MISSION SECURED", description: "Telemetry broadcast terminated." });
   };
 
@@ -357,6 +368,19 @@ export default function VolunteerApp() {
               )}
             </Card>
 
+            <div className="grid grid-cols-1 gap-4">
+              <Button 
+                onClick={() => handleRescue(true)} 
+                disabled={isDispatching || !currentCoords}
+                variant="destructive" 
+                className="h-24 text-2xl font-black uppercase shadow-2xl rounded-3xl border-b-8 border-red-900 flex flex-col gap-0.5 leading-none"
+              >
+                <ShieldAlert className="w-8 h-8 mb-1" />
+                Emergency SOS
+                <span className="text-[10px] opacity-60 font-bold tracking-widest mt-1">DIRECT SIGNAL TO COMMAND</span>
+              </Button>
+            </div>
+
             {scannedId && (
               <div className="animate-entrance space-y-4">
                 <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-2xl space-y-4 border-b-8 border-primary relative overflow-hidden">
@@ -401,7 +425,7 @@ export default function VolunteerApp() {
                   )}
                 </div>
 
-                <Button onClick={handleRescue} disabled={isDispatching || !currentCoords} className="w-full h-20 text-xl font-black uppercase shadow-2xl bg-primary hover:bg-primary/90 rounded-3xl border-b-8 border-orange-800">
+                <Button onClick={() => handleRescue(false)} disabled={isDispatching || !currentCoords} className="w-full h-20 text-xl font-black uppercase shadow-2xl bg-primary hover:bg-primary/90 rounded-3xl border-b-8 border-orange-800">
                   {isDispatching ? <Loader2 className="animate-spin" /> : <><AlertTriangle className="mr-3 w-6 h-6" /> Initiate Broadcast</>}
                 </Button>
               </div>
@@ -418,10 +442,10 @@ export default function VolunteerApp() {
                   {pastMissions.slice(0, 3).map(mission => (
                     <Card key={mission.id} className="p-3 border-2 shadow-sm flex items-center justify-between">
                       <div>
-                        <p className="text-[10px] font-black text-primary">{mission.childId}</p>
+                        <p className="text-[10px] font-black text-primary">{mission.childId === 'EMERGENCY_SOS' ? 'SOS SIGNAL' : mission.childId}</p>
                         <p className="text-[9px] font-bold text-muted-foreground uppercase">{new Date(mission.scanTime).toLocaleDateString()}</p>
                       </div>
-                      <Badge variant={mission.status === 'Child Reunited' ? 'secondary' : 'default'} className="text-[8px] font-black uppercase">{mission.status}</Badge>
+                      <Badge variant={mission.status === 'Child Reunited' ? 'secondary' : (mission.status === 'SOS' ? 'destructive' : 'default')} className="text-[8px] font-black uppercase">{mission.status}</Badge>
                     </Card>
                   ))}
                 </div>
@@ -432,12 +456,28 @@ export default function VolunteerApp() {
           </>
         ) : (
           <div className="space-y-6 py-8">
-            <Card className="border-8 border-teal-500 bg-white p-8 text-center space-y-8 shadow-2xl animate-success-pop rounded-[3rem]">
-              <div className="w-24 h-24 bg-teal-100 rounded-full flex items-center justify-center mx-auto shadow-inner"><CheckCircle2 className="w-16 h-16 text-teal-600" /></div>
+            <Card className={cn(
+              "p-8 text-center space-y-8 shadow-2xl animate-success-pop rounded-[3rem] border-8",
+              isSOSMode ? "border-red-600 bg-red-50" : "border-teal-500 bg-white"
+            )}>
+              <div className={cn(
+                "w-24 h-24 rounded-full flex items-center justify-center mx-auto shadow-inner",
+                isSOSMode ? "bg-red-200 animate-pulse" : "bg-teal-100"
+              )}>
+                {isSOSMode ? <ShieldAlert className="w-16 h-16 text-red-600" /> : <CheckCircle2 className="w-16 h-16 text-teal-600" />}
+              </div>
               <div className="space-y-3">
-                <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">Broadcasting</h2>
-                <div className="bg-slate-900 text-teal-400 p-4 rounded-2xl border-2 border-teal-900/20 text-[10px] font-black uppercase tracking-widest leading-relaxed">
-                  Live situational telemetry active.
+                <h2 className={cn(
+                  "text-4xl font-black uppercase tracking-tighter leading-none",
+                  isSOSMode ? "text-red-900" : "text-slate-900"
+                )}>
+                  {isSOSMode ? "SOS ACTIVE" : "Broadcasting"}
+                </h2>
+                <div className={cn(
+                  "p-4 rounded-2xl border-2 text-[10px] font-black uppercase tracking-widest leading-relaxed",
+                  isSOSMode ? "bg-red-950 text-red-400 border-red-900/20" : "bg-slate-900 text-teal-400 border-teal-900/20"
+                )}>
+                  {isSOSMode ? "Emergency signal transmitted. Command notified." : "Live situational telemetry active."}
                 </div>
               </div>
               <Button onClick={closeMission} variant="destructive" className="w-full h-14 border-b-4 border-red-900 font-black uppercase text-sm shadow-xl flex gap-3">
