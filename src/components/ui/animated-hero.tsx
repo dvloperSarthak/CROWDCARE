@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
-import { MoveRight, ShieldAlert } from "lucide-react";
+import { MoveRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button";
 
 function Hero() {
   const [titleNumber, setTitleNumber] = useState(0);
@@ -22,6 +23,13 @@ function Hero() {
     }, 2000);
     return () => clearTimeout(timeoutId);
   }, [titleNumber, titles]);
+
+  const scrollToRoles = () => {
+    const element = document.getElementById('roles');
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   return (
     <div className="w-full">
@@ -67,9 +75,11 @@ function Hero() {
             </p>
           </div>
           <div className="flex flex-row gap-3">
-             <Button size="lg" className="gap-4 h-12 px-8 shadow-lg" asChild>
-                <a href="#roles">Select Your Role <MoveRight className="w-4 h-4" /></a>
-             </Button>
+             <InteractiveHoverButton 
+               text="Select Your Role" 
+               className="w-56 h-12 font-black uppercase tracking-widest text-[10px]"
+               onClick={scrollToRoles}
+             />
           </div>
         </div>
       </div>
