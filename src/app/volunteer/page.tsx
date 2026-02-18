@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -43,7 +42,8 @@ import {
   Search,
   MessageSquare,
   Sparkles,
-  Megaphone
+  Megaphone,
+  RefreshCw
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking, updateDocumentNonBlocking, useAuth, initiateAnonymousSignIn, useCollection } from '@/firebase';
@@ -69,6 +69,7 @@ export default function VolunteerApp() {
   const [isMatching, setIsMatching] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
   const [isAlarmActive, setIsAlarmActive] = useState(false);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const alarmIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -145,11 +146,17 @@ export default function VolunteerApp() {
   const childRef = useMemoFirebase(() => (scannedId && user) ? doc(db, 'children', scannedId) : null, [db, scannedId, user]);
   const { data: childData, isLoading: isLoadingChild } = useDoc(childRef);
 
-  const startCamera = async () => {
+  const startCamera = async (mode: 'user' | 'environment' = facingMode) => {
     setIsScanning(true);
     setScannedId('');
+    
+    // Stop previous tracks
+    if (videoRef.current?.srcObject) {
+      (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.play();
@@ -159,6 +166,12 @@ export default function VolunteerApp() {
       setIsScanning(false);
       toast({ variant: 'destructive', title: 'Scanner Offline', description: 'Enable camera to decode IDs.' });
     }
+  };
+
+  const switchCamera = () => {
+    const newMode = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(newMode);
+    startCamera(newMode);
   };
 
   const tick = () => {
@@ -292,7 +305,12 @@ export default function VolunteerApp() {
               {isScanning && (
                 <div className="absolute inset-0 pointer-events-none z-10">
                   <div className="w-full h-1 bg-primary shadow-[0_0_20px_rgba(255,119,51,1)] animate-scan-line absolute" />
-                  <Button variant="destructive" className="absolute bottom-6 left-1/2 -translate-x-1/2 h-10 px-6 font-black uppercase text-[10px]" onClick={stopCamera}>Cancel Scan</Button>
+                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-4">
+                    <Button variant="destructive" className="h-10 px-6 font-black uppercase text-[10px]" onClick={stopCamera}>Cancel</Button>
+                    <Button variant="secondary" size="icon" className="h-10 w-10 rounded-full" onClick={switchCamera}>
+                      <RefreshCw className="h-5 w-5" />
+                    </Button>
+                  </div>
                 </div>
               )}
               {!isScanning && (
@@ -300,7 +318,7 @@ export default function VolunteerApp() {
                   <div className="bg-white/10 p-8 rounded-full inline-block backdrop-blur-xl border-2 border-white/20 shadow-2xl">
                     <Camera className="w-12 h-12 text-white" />
                   </div>
-                  <Button onClick={startCamera} className="w-full h-16 text-lg font-black uppercase tracking-widest bg-primary rounded-2xl">Scan ID</Button>
+                  <Button onClick={() => startCamera()} className="w-full h-16 text-lg font-black uppercase tracking-widest bg-primary rounded-2xl">Scan ID</Button>
                   <Button variant="ghost" className="text-white text-[10px] font-black uppercase" onClick={() => setManualDescription('describe')}>Describe Child Instead</Button>
                 </div>
               )}

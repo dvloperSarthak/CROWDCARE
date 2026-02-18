@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { UserCog, Camera, LayoutDashboard, Fingerprint, LogIn, UserCircle, ShieldCheck, ShieldAlert, Loader2, Siren, AlertTriangle, Search, QrCode } from 'lucide-react';
+import { UserCog, Camera, LayoutDashboard, Fingerprint, LogIn, UserCircle, ShieldCheck, ShieldAlert, Loader2, Siren, AlertTriangle, Search, QrCode, RefreshCw } from 'lucide-react';
 import { useAuth, initiateAnonymousSignIn, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
@@ -42,6 +42,7 @@ export default function Home() {
   const [isSOSLoading, setIsSOSLoading] = useState(false);
   const [statusId, setStatusId] = useState('');
   const [isScanningQR, setIsScanningQR] = useState(false);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -60,10 +61,15 @@ export default function Home() {
   const isGuardian = isAdmin || isOperator;
   const isLoadingRoles = (loadingAdmin || loadingOperator) && !isEmailUser;
 
-  const startScanning = async () => {
+  const startScanning = async (mode: 'user' | 'environment' = facingMode) => {
     setIsScanningQR(true);
+    // Stop previous tracks if any
+    if (videoRef.current?.srcObject) {
+      (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+    }
+    
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.play();
@@ -73,6 +79,12 @@ export default function Home() {
       setIsScanningQR(false);
       toast({ variant: 'destructive', title: 'Scanner Offline', description: 'Camera access is required.' });
     }
+  };
+
+  const switchCamera = () => {
+    const newMode = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(newMode);
+    startScanning(newMode);
   };
 
   const stopScanning = () => {
@@ -188,7 +200,7 @@ export default function Home() {
                       />
                       <Dialog open={isScanningQR} onOpenChange={(open) => !open && stopScanning()}>
                         <DialogTrigger asChild>
-                          <Button variant="outline" className="h-12 w-12 p-0 border-2 border-slate-900 shrink-0" onClick={startScanning}>
+                          <Button variant="outline" className="h-12 w-12 p-0 border-2 border-slate-900 shrink-0" onClick={() => startScanning()}>
                             <QrCode className="w-6 h-6" />
                           </Button>
                         </DialogTrigger>
@@ -203,6 +215,14 @@ export default function Home() {
                                <div className="w-64 h-64 border-2 border-primary border-dashed rounded-3xl animate-pulse" />
                                <div className="absolute top-0 w-full h-1 bg-primary shadow-[0_0_20px_rgba(255,119,51,1)] animate-scan-line" />
                             </div>
+                            <Button 
+                              variant="secondary" 
+                              size="icon" 
+                              className="absolute bottom-4 right-4 z-20 rounded-full h-12 w-12 opacity-80 hover:opacity-100"
+                              onClick={switchCamera}
+                            >
+                              <RefreshCw className="h-6 w-6" />
+                            </Button>
                           </div>
                           <div className="p-4 bg-slate-900 text-center">
                             <p className="text-[10px] font-black uppercase text-slate-400">Position the ID QR code within the frame</p>
