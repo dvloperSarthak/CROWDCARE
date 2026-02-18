@@ -84,7 +84,7 @@ export default function ChildrenList() {
 
   return (
     <div className="min-h-screen bg-background">
-      <NavBar title="Guardian ID Registry" backHref="/admin/register" />
+      <NavBar title="Guardian ID Registry" backHref="/" />
       <main className="container py-8 px-6 mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div className="relative w-full md:w-96">

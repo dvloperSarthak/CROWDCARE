@@ -111,10 +111,10 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <RoleCard 
-              href="/admin/register"
+              href="/admin/children"
               icon={<UserCog className="w-6 h-6" />}
               title="Guardian Panel"
-              description="Child Registration & QR Generation."
+              description="ID Registry & Registration Management."
               isRestricted={!isAdmin}
               isLoading={isLoadingRoles}
               subtext={!isAdmin ? "Guardian Credentials Required" : "Guardian Mode Active"}

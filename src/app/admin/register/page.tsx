@@ -28,7 +28,7 @@ export default function AdminRegister() {
 
   // Role verification
   const roleRef = useMemoFirebase(() => user ? doc(db, 'roles_admin', user.uid) : null, [db, user]);
-  const { data: adminRole, isLoading: isLoadingRole } = useDoc(roleRef);
+  const { data: adminRole, isLoading: loadingAdmin } = useDoc(roleRef);
 
   const isEmailUser = user && !user.isAnonymous;
   const isAdmin = !!adminRole || isEmailUser; // Seamless prototype access for email users
@@ -151,7 +151,7 @@ export default function AdminRegister() {
 
   return (
     <div className="min-h-screen bg-background">
-      <NavBar title="Child Registration" backHref="/" />
+      <NavBar title="Child Registration" backHref="/admin/children" />
       <main className="container max-w-2xl py-8 px-6 mx-auto">
         <Card className="shadow-lg border-2">
           <CardHeader className="space-y-1">
