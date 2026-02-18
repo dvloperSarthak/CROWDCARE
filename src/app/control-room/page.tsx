@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavBar } from '@/components/nav-bar';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { AlertCircle, Map, Bell, Check, User, Phone, ShieldAlert, Clock, Loader2 } from 'lucide-react';
+import { AlertCircle, Map, Bell, Check, User, Phone, ShieldAlert, Clock, Loader2, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { detectDuplicateRescueAlert } from '@/ai/flows/duplicate-rescue-detection-flow';
 import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
@@ -24,9 +24,26 @@ export default function ControlRoom() {
   const { data: children } = useCollection(childrenRef);
 
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
+  const [prevAlertsCount, setPrevAlertsCount] = useState(0);
 
   const selectedAlert = alerts?.find(a => a.id === selectedAlertId) || null;
   const relatedChild = children?.find(c => c.id === selectedAlert?.childId) || null;
+
+  // Track new alerts to show visual notification
+  useEffect(() => {
+    if (alerts && alerts.length > prevAlertsCount) {
+      if (prevAlertsCount > 0) {
+        const newest = alerts[alerts.length - 1];
+        toast({
+          title: "NEW ALERT RECEIVED",
+          description: `Child ID ${newest.childId} detected in Stadium West.`,
+          variant: "default",
+          className: "bg-primary text-white border-none shadow-2xl animate-bounce"
+        });
+      }
+      setPrevAlertsCount(alerts.length);
+    }
+  }, [alerts, prevAlertsCount, toast]);
 
   const handleSelectAlert = (alert: any) => {
     setSelectedAlertId(alert.id);
@@ -59,8 +76,8 @@ export default function ControlRoom() {
 
       if (result.isDuplicate) {
         toast({
-          title: "AI Detection",
-          description: `Duplicate detected: ${result.reason}`,
+          title: "AI Detection Warning",
+          description: `Potential duplicate identified: ${result.reason}`,
           variant: "destructive"
         });
         
@@ -85,7 +102,8 @@ export default function ControlRoom() {
     
     toast({
       title: "Notification Sent",
-      description: "SMS alert and Push notification sent to parent's device.",
+      description: "SMS and Push dispatch complete. Confirmation received.",
+      variant: "secondary"
     });
   };
 
@@ -98,8 +116,8 @@ export default function ControlRoom() {
     });
     
     toast({
-      title: "Rescue Resolved",
-      description: "Status updated to Child Reunited.",
+      title: "Mission Resolved",
+      description: "Alert cleared. Family reunited.",
     });
     setSelectedAlertId(null);
   };
@@ -112,90 +130,96 @@ export default function ControlRoom() {
         
         {/* Statistics Bar */}
         <div className="lg:col-span-12 grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
-          <Card className="bg-primary/5 border-primary/20">
+          <Card className="bg-primary/5 border-primary/20 shadow-sm">
             <CardContent className="p-4 flex items-center gap-4">
-              <div className="bg-primary p-2 rounded-lg"><AlertCircle className="text-white h-6 w-6" /></div>
-              <div><p className="text-xs font-bold uppercase text-muted-foreground">Active Alerts</p><p className="text-2xl font-black">{alerts?.filter(a => a.status !== 'Child Reunited').length || 0}</p></div>
+              <div className="bg-primary p-2 rounded-lg shadow-md"><AlertCircle className="text-white h-6 w-6" /></div>
+              <div><p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Active Alerts</p><p className="text-3xl font-black text-primary">{alerts?.filter(a => a.status !== 'Child Reunited').length || 0}</p></div>
             </CardContent>
           </Card>
-          <Card className="bg-teal-50 border-teal-200">
+          <Card className="bg-teal-50 border-teal-200 shadow-sm">
             <CardContent className="p-4 flex items-center gap-4">
-              <div className="bg-teal-500 p-2 rounded-lg"><Check className="text-white h-6 w-6" /></div>
-              <div><p className="text-xs font-bold uppercase text-muted-foreground">Reunited</p><p className="text-2xl font-black">{alerts?.filter(a => a.status === 'Child Reunited').length || 0}</p></div>
+              <div className="bg-teal-500 p-2 rounded-lg shadow-md"><Check className="text-white h-6 w-6" /></div>
+              <div><p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Reunited</p><p className="text-3xl font-black text-teal-700">{alerts?.filter(a => a.status === 'Child Reunited').length || 0}</p></div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="shadow-sm">
             <CardContent className="p-4 flex items-center gap-4">
               <div className="bg-slate-200 p-2 rounded-lg"><User className="text-slate-700 h-6 w-6" /></div>
-              <div><p className="text-xs font-bold uppercase text-muted-foreground">Registered</p><p className="text-2xl font-black">{children?.length || 0}</p></div>
+              <div><p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Registered</p><p className="text-3xl font-black">{children?.length || 0}</p></div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="shadow-sm">
             <CardContent className="p-4 flex items-center gap-4">
               <div className="bg-slate-200 p-2 rounded-lg"><Clock className="text-slate-700 h-6 w-6" /></div>
-              <div><p className="text-xs font-bold uppercase text-muted-foreground">Avg. Response</p><p className="text-2xl font-black">4.2m</p></div>
+              <div><p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Avg Response</p><p className="text-3xl font-black">4.2m</p></div>
             </CardContent>
           </Card>
         </div>
 
         {/* Live Alerts Table */}
         <div className="lg:col-span-8 space-y-6">
-          <Card className="shadow-lg border-2">
-            <CardHeader className="border-b bg-slate-50">
+          <Card className="shadow-xl border-2 overflow-hidden">
+            <CardHeader className="border-b bg-slate-50 py-4">
               <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>Live Rescue Feed</CardTitle>
-                  <CardDescription>Real-time incoming alerts from volunteers.</CardDescription>
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-primary" />
+                  <div>
+                    <CardTitle className="text-lg">Live Rescue Feed</CardTitle>
+                    <CardDescription className="text-xs">Real-time field intelligence</CardDescription>
+                  </div>
                 </div>
-                <Badge variant="outline" className="animate-pulse flex gap-1 items-center border-primary text-primary">
-                  <div className="w-2 h-2 rounded-full bg-primary" /> LIVE
+                <Badge variant="outline" className="animate-pulse flex gap-1 items-center border-primary text-primary px-3 bg-primary/5">
+                  <div className="w-2 h-2 rounded-full bg-primary" /> SECURE LIVE FEED
                 </Badge>
               </div>
             </CardHeader>
             <CardContent className="p-0">
               {loadingAlerts ? (
-                <div className="flex flex-col items-center justify-center py-20 gap-2">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                  <p className="text-muted-foreground">Loading rescue data...</p>
+                <div className="flex flex-col items-center justify-center py-24 gap-4">
+                  <Loader2 className="w-12 h-12 animate-spin text-primary" />
+                  <p className="text-muted-foreground font-bold tracking-widest uppercase text-xs">Decrypting field signals...</p>
                 </div>
               ) : (
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-24">ID</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>AI Tag</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
+                    <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
+                      <TableHead className="w-24 font-black text-[10px] uppercase tracking-widest">ID</TableHead>
+                      <TableHead className="font-black text-[10px] uppercase tracking-widest">Location</TableHead>
+                      <TableHead className="font-black text-[10px] uppercase tracking-widest">Time</TableHead>
+                      <TableHead className="font-black text-[10px] uppercase tracking-widest">Status</TableHead>
+                      <TableHead className="font-black text-[10px] uppercase tracking-widest">AI Audit</TableHead>
+                      <TableHead className="text-right font-black text-[10px] uppercase tracking-widest">Ops</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {!alerts || alerts.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">No active rescue alerts currently.</TableCell>
+                        <TableCell colSpan={6} className="h-48 text-center text-muted-foreground font-medium">No active field alerts currently. Monitor standing by.</TableCell>
                       </TableRow>
                     ) : (
-                      alerts.map((alert) => (
+                      [...alerts].reverse().map((alert) => (
                         <TableRow 
                           key={alert.id} 
-                          className={`cursor-pointer transition-colors ${selectedAlertId === alert.id ? 'bg-primary/10' : ''}`}
+                          className={`cursor-pointer transition-all duration-300 animate-entrance ${selectedAlertId === alert.id ? 'bg-primary/10' : ''}`}
                           onClick={() => handleSelectAlert(alert)}
                         >
-                          <TableCell className="font-bold">{alert.childId}</TableCell>
-                          <TableCell className="flex items-center gap-1"><Map className="w-3 h-3 text-muted-foreground" /> {alert.locationLatitude}, {alert.locationLongitude}</TableCell>
-                          <TableCell>{new Date(alert.scanTime).toLocaleTimeString()}</TableCell>
+                          <TableCell className="font-black text-primary">{alert.childId}</TableCell>
+                          <TableCell className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                             <Map className="w-3 h-3 text-primary" /> Sector 4 Gateway
+                          </TableCell>
+                          <TableCell className="font-medium text-xs text-slate-500">{new Date(alert.scanTime).toLocaleTimeString()}</TableCell>
                           <TableCell>
-                            <Badge variant={alert.status === 'Child Reunited' ? 'secondary' : 'default'} className={alert.status === 'Scanned' ? 'rescue-pulse bg-primary' : ''}>
+                            <Badge variant={alert.status === 'Child Reunited' ? 'secondary' : 'default'} className={`text-[10px] font-black h-5 uppercase tracking-tighter ${alert.status === 'Scanned' ? 'rescue-pulse bg-primary' : ''}`}>
                               {alert.status}
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {alert.isDuplicate === true && <Badge variant="destructive" className="bg-red-500 text-[10px]">POTENTIAL DUPLICATE</Badge>}
-                            {alert.isDuplicate === false && <Badge variant="outline" className="text-teal-600 border-teal-600 text-[10px]">VERIFIED UNIQUE</Badge>}
+                            {alert.isDuplicate === true && <Badge variant="destructive" className="bg-red-500 text-[9px] font-black h-5">DUPLICATE ALERT</Badge>}
+                            {alert.isDuplicate === false && <Badge variant="outline" className="text-teal-600 border-teal-600 text-[9px] font-black h-5">UNIQUE INCIDENT</Badge>}
+                            {alert.isDuplicate === undefined && <span className="text-[9px] text-slate-400 font-bold italic">Analyzing...</span>}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleSelectAlert(alert); }}>View Details</Button>
+                            <Button size="sm" variant="ghost" className="h-8 text-xs font-black" onClick={(e) => { e.stopPropagation(); handleSelectAlert(alert); }}>INSPECT</Button>
                           </TableCell>
                         </TableRow>
                       ))
@@ -209,11 +233,11 @@ export default function ControlRoom() {
 
         {/* Detailed Inspection Panel */}
         <div className="lg:col-span-4 space-y-6">
-          <Card className={`shadow-xl border-2 transition-opacity ${!selectedAlert ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100'}`}>
-            <CardHeader className="bg-slate-900 text-white rounded-t-lg">
-              <CardTitle className="flex items-center gap-2">
+          <Card className={`shadow-2xl border-2 transition-all duration-500 ${!selectedAlert ? 'opacity-40 grayscale pointer-events-none scale-95 origin-top' : 'opacity-100 scale-100'}`}>
+            <CardHeader className="bg-slate-900 text-white rounded-t-lg border-b-4 border-primary">
+              <CardTitle className="flex items-center gap-2 text-lg">
                 <ShieldAlert className="w-5 h-5 text-primary" />
-                Alert Details
+                SITUATION REPORT
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
@@ -222,82 +246,94 @@ export default function ControlRoom() {
                   <div className="space-y-4">
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="text-xs font-bold text-muted-foreground uppercase">Target ID</p>
-                        <h3 className="text-3xl font-black text-primary">{selectedAlert.childId}</h3>
+                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Incident Target</p>
+                        <h3 className="text-4xl font-black text-primary tracking-tighter">{selectedAlert.childId}</h3>
                       </div>
-                      <Badge className="bg-primary h-8 px-4 text-sm uppercase">{selectedAlert.status}</Badge>
+                      <Badge className="bg-primary h-8 px-4 text-[10px] font-black uppercase tracking-widest shadow-md">{selectedAlert.status}</Badge>
                     </div>
 
                     {selectedAlert.isDuplicate && (
-                      <div className="bg-red-50 border border-red-200 p-3 rounded-lg flex gap-2">
-                        <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
-                        <p className="text-xs text-red-800 font-medium">AI Flagged Duplicate: {selectedAlert.notes}</p>
+                      <div className="bg-red-50 border-2 border-red-200 p-4 rounded-xl flex gap-3 animate-pulse">
+                        <AlertCircle className="w-6 h-6 text-red-600 shrink-0" />
+                        <div>
+                           <p className="text-[10px] font-black text-red-900 uppercase">AI Intelligence Warning</p>
+                           <p className="text-xs text-red-800 font-bold leading-tight">{selectedAlert.notes}</p>
+                        </div>
                       </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-slate-50 p-3 rounded-lg border">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase">Child Name</p>
-                        <p className="font-bold truncate">{relatedChild?.childName || 'Not Found'}</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-slate-50 p-3 rounded-xl border-2 border-slate-100">
+                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Identity</p>
+                        <p className="font-black text-sm text-slate-900 truncate">{relatedChild?.childName || 'PENDING...'}</p>
                       </div>
-                      <div className="bg-slate-50 p-3 rounded-lg border">
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase">Registered At</p>
-                        <p className="font-bold truncate">{relatedChild ? new Date(relatedChild.registrationDate).toLocaleDateString() : 'N/A'}</p>
+                      <div className="bg-slate-50 p-3 rounded-xl border-2 border-slate-100">
+                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Time In</p>
+                        <p className="font-black text-sm text-slate-900 truncate">{new Date(selectedAlert.scanTime).toLocaleTimeString()}</p>
                       </div>
                     </div>
 
-                    <div className="p-4 bg-teal-50 border border-teal-100 rounded-xl space-y-3">
+                    <div className="p-5 bg-teal-50 border-2 border-teal-100 rounded-2xl space-y-4 shadow-inner">
                       <div className="flex items-center justify-between">
-                         <h4 className="text-xs font-bold text-teal-900 uppercase tracking-tighter">Parent Information</h4>
-                         <Phone className="w-4 h-4 text-teal-600" />
+                         <h4 className="text-[10px] font-black text-teal-900 uppercase tracking-widest flex items-center gap-2">
+                           <Phone className="w-3 h-3" /> Secure Contact
+                         </h4>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-sm font-black text-teal-900">{relatedChild?.parentName || 'Unknown'}</p>
-                        <p className="text-lg font-bold text-teal-700">{relatedChild?.parentMobileNumber || 'No contact info'}</p>
+                        <p className="text-xs font-bold text-teal-700 uppercase tracking-tighter">Parent/Guardian</p>
+                        <p className="text-lg font-black text-teal-950">{relatedChild?.parentName || 'DATA RESTRICTED'}</p>
+                        <p className="text-2xl font-black text-teal-600 tracking-tighter">{relatedChild?.parentMobileNumber || '--- --- ----'}</p>
                       </div>
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t space-y-3">
+                  <div className="pt-4 border-t-2 space-y-3">
                     <Button 
-                      className="w-full h-12 text-lg bg-teal-600 hover:bg-teal-700"
+                      className="w-full h-14 text-lg font-black uppercase tracking-widest bg-teal-600 hover:bg-teal-700 shadow-lg group"
                       disabled={selectedAlert.status !== 'Scanned'}
                       onClick={() => notifyParent(selectedAlert.id)}
                     >
-                      <Bell className="mr-2 w-5 h-5" /> Notify Parent
+                      <Bell className="mr-2 w-5 h-5 group-hover:animate-ring" /> Notify Parent
                     </Button>
                     <Button 
-                      className="w-full h-12 text-lg"
+                      className="w-full h-14 text-lg font-black uppercase tracking-widest"
                       variant="outline"
                       disabled={selectedAlert.status !== 'Parent Notified'}
                       onClick={() => resolveRescue(selectedAlert.id)}
                     >
-                      <Check className="mr-2 w-5 h-5" /> Resolve & Close Alert
+                      <Check className="mr-2 w-6 h-6" /> Reunited & Clear
                     </Button>
                   </div>
                 </>
               ) : (
-                <div className="text-center py-20 text-muted-foreground">
-                  Select an alert from the feed to view full details and contact parent.
+                <div className="text-center py-24 text-muted-foreground space-y-4">
+                  <div className="bg-slate-100 w-16 h-16 rounded-full mx-auto flex items-center justify-center border-2 border-dashed border-slate-300">
+                    <AlertCircle className="w-8 h-8 opacity-20" />
+                  </div>
+                  <p className="text-xs font-black uppercase tracking-widest">Monitor Mode Active</p>
+                  <p className="text-xs font-medium px-8">Select a field event from the live feed to initiate resolution protocols.</p>
                 </div>
               )}
             </CardContent>
           </Card>
 
           {/* Map View Simulation */}
-          <Card className="h-48 overflow-hidden relative group">
+          <Card className="h-56 overflow-hidden relative border-2 shadow-inner group">
             <div className="absolute inset-0 bg-slate-200 flex items-center justify-center">
-              <Map className="w-12 h-12 text-slate-400" />
-              <p className="absolute bottom-2 text-xs font-bold text-slate-500">DYNAMIC EVENT MAP SIMULATION</p>
+              <Map className="w-16 h-16 text-slate-300" />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-300/50 to-transparent pointer-events-none" />
+              <p className="absolute bottom-3 text-[9px] font-black text-slate-500 uppercase tracking-[0.3em]">Guardian Dynamic Grid Map</p>
+              
               {selectedAlert && (
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                   <div className="bg-primary w-4 h-4 rounded-full rescue-pulse border-2 border-white shadow-lg" />
+                   <div className="bg-primary w-6 h-6 rounded-full animate-ping opacity-40" />
+                   <div className="bg-primary w-4 h-4 rounded-full border-2 border-white shadow-xl relative z-10" />
                 </div>
               )}
             </div>
-            <div className="absolute top-2 right-2 flex flex-col gap-1">
-               <Badge className="bg-black/60 backdrop-blur-sm text-[8px]">ZOOM: 18x</Badge>
-               <Badge className="bg-black/60 backdrop-blur-sm text-[8px]">GRID: STADIUM_WEST</Badge>
+            <div className="absolute top-3 left-3 flex flex-col gap-1">
+               <Badge className="bg-black/80 backdrop-blur-md text-[8px] font-black h-5 border-none">SAT_LINK: ONLINE</Badge>
+               <Badge className="bg-black/80 backdrop-blur-md text-[8px] font-black h-5 border-none">GRID: STADIUM_WEST_4</Badge>
             </div>
           </Card>
         </div>
