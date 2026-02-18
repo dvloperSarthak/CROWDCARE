@@ -8,6 +8,16 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { 
   Camera, 
   Signal, 
   AlertTriangle, 
@@ -26,7 +36,8 @@ import {
   Phone,
   PhoneCall,
   CloudUpload,
-  X
+  X,
+  Clock
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking, updateDocumentNonBlocking, useAuth, initiateAnonymousSignIn } from '@/firebase';
@@ -53,6 +64,7 @@ export default function VolunteerApp() {
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [statusFile, setStatusFile] = useState<File | null>(null);
   const [statusPreview, setStatusPreview] = useState<string | null>(null);
+  const [showReminder, setShowReminder] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -62,7 +74,20 @@ export default function VolunteerApp() {
   
   const db = useFirestore();
   const auth = useAuth();
-  const { user, isUserLoading } = userUser();
+  const { user, isUserLoading } = useUser();
+
+  // Automated Reminder Effect: Ask every 30 minutes
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isBroadcasting && isSent) {
+      interval = setInterval(() => {
+        setShowReminder(true);
+      }, 30 * 60 * 1000); // 30 minutes
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isBroadcasting, isSent]);
 
   useEffect(() => {
     if (!isUserLoading && !user && auth) {
@@ -264,6 +289,17 @@ export default function VolunteerApp() {
     }, 1200);
   };
 
+  const closeMission = () => {
+    setScannedId(''); 
+    setIsSent(false); 
+    setActiveAlertId(null); 
+    setIsBroadcasting(false); 
+    setStatusFile(null); 
+    setStatusPreview(null);
+    setShowReminder(false);
+    toast({ title: "MISSION SECURED", description: "Telemetry broadcast terminated." });
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20">
       <NavBar title="Guardian Field Terminal" backHref="/" />
@@ -450,18 +486,33 @@ export default function VolunteerApp() {
                 <div className="flex items-center justify-center gap-2 text-[10px] font-black uppercase text-teal-600">
                   <Wifi className="w-4 h-4 animate-pulse" /> Continuous Data Stream Active
                 </div>
-                <Button onClick={() => { 
-                  setScannedId(''); 
-                  setIsSent(false); 
-                  setActiveAlertId(null); 
-                  setIsBroadcasting(false); 
-                  setStatusFile(null); 
-                  setStatusPreview(null);
-                }} variant="outline" className="w-full h-12 border-2 border-slate-900 font-black uppercase text-[10px]">Close Mission Terminal</Button>
+                <Button onClick={closeMission} variant="outline" className="w-full h-12 border-2 border-slate-900 font-black uppercase text-[10px]">Close Mission Terminal</Button>
               </div>
             </Card>
           </div>
         )}
+
+        <AlertDialog open={showReminder} onOpenChange={setShowReminder}>
+          <AlertDialogContent className="bg-slate-900 border-4 border-primary text-white">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-primary font-black uppercase tracking-tighter">
+                <Clock className="w-6 h-6 animate-pulse" /> Mission Maintenance Required
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-slate-300 font-bold">
+                You have been broadcasting live telemetry for 30 minutes. 
+                In compliance with Guardian safety protocols, please confirm if you wish to maintain the active signal or stop the mission.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+              <AlertDialogCancel onClick={() => setShowReminder(false)} className="bg-transparent border-2 border-white text-white hover:bg-white/10 font-black uppercase text-[10px]">
+                Maintain Broadcast
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={closeMission} className="bg-destructive hover:bg-destructive/90 text-white font-black uppercase text-[10px]">
+                Stop Mission & Secure Device
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   );
