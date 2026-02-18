@@ -3,9 +3,24 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ShieldAlert, ChevronLeft, LogOut, UserCircle, Siren, Loader2, Navigation, AlertTriangle, Home } from 'lucide-react';
+import { 
+  ShieldAlert, 
+  ChevronLeft, 
+  LogOut, 
+  UserCircle, 
+  Siren, 
+  Loader2, 
+  Navigation, 
+  AlertTriangle, 
+  Home, 
+  Menu as MenuIcon,
+  UserCog,
+  Camera,
+  LayoutDashboard,
+  ShieldCheck
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useAuth, useUser, useFirestore, initiateAnonymousSignIn, setDocumentNonBlocking } from '@/firebase';
+import { useAuth, useUser, useFirestore, initiateAnonymousSignIn, setDocumentNonBlocking, useDoc, useMemoFirebase } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { doc } from 'firebase/firestore';
@@ -22,6 +37,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 export function NavBar({ title, backHref }: { title: string, backHref?: string }) {
   const auth = useAuth();
@@ -30,23 +52,32 @@ export function NavBar({ title, backHref }: { title: string, backHref?: string }
   const router = useRouter();
   const { toast } = useToast();
   const [isSOSLoading, setIsSOSLoading] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  // Role verification for menu links
+  const adminRoleRef = useMemoFirebase(() => user ? doc(db, 'roles_admin', user.uid) : null, [db, user]);
+  const operatorRoleRef = useMemoFirebase(() => user ? doc(db, 'roles_operator', user.uid) : null, [db, user]);
+  
+  const { data: adminRole } = useDoc(adminRoleRef);
+  const { data: operatorRole } = useDoc(operatorRoleRef);
+
+  const isEmailUser = user && !user.isAnonymous;
+  const isAdmin = !!adminRole || isEmailUser;
+  const isOperator = !!operatorRole || isEmailUser;
 
   const handleLogout = async () => {
     await signOut(auth);
+    setIsMenuOpen(false);
     router.push('/');
   };
 
   const triggerGlobalSOS = async () => {
     setIsSOSLoading(true);
-    
-    // Ensure anonymous sign-in for guests
     let currentUser = user;
     if (!currentUser) {
       initiateAnonymousSignIn(auth);
-      // We'll wait a brief moment for the auth state to settle, 
-      // though non-blocking is preferred, we need a UID for the SOS record.
       toast({ title: "Authenticating SOS...", description: "Establishing secure link to Command." });
-      return; // The user will need to tap again once auth settles, or we could poll.
+      return;
     }
 
     if (!navigator.geolocation) {
@@ -141,21 +172,105 @@ export function NavBar({ title, backHref }: { title: string, backHref?: string }
             </div>
           )}
           
-          <div className="hidden md:flex">
-            <InteractiveHoverButton 
-              text="Menu" 
-              className="h-9 w-24 text-[10px] font-bold uppercase tracking-widest"
-              onClick={() => router.push('/')}
-            />
-          </div>
+          {/* Tactical Sidebar Menu */}
+          <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+            <SheetTrigger asChild>
+              <div className="hidden md:flex">
+                <InteractiveHoverButton 
+                  text="Menu" 
+                  className="h-9 w-24 text-[10px] font-bold uppercase tracking-widest"
+                />
+              </div>
+            </SheetTrigger>
+            <SheetContent className="bg-slate-50 border-l-4 border-primary sm:max-w-sm">
+              <SheetHeader className="border-b pb-6 mb-6">
+                <SheetTitle className="flex items-center gap-3 text-2xl font-black uppercase tracking-tighter">
+                  <ShieldAlert className="w-8 h-8 text-primary" /> Tactical Menu
+                </SheetTitle>
+              </SheetHeader>
+              <div className="flex flex-col gap-4">
+                <MenuLink 
+                  href="/" 
+                  icon={<Home className="w-5 h-5" />} 
+                  label="Command Dashboard" 
+                  onClick={() => setIsMenuOpen(false)} 
+                />
+                <MenuLink 
+                  href="/volunteer" 
+                  icon={<Camera className="w-5 h-5" />} 
+                  label="Volunteer Terminal" 
+                  onClick={() => setIsMenuOpen(false)} 
+                />
+                
+                {(isAdmin || isOperator) && (
+                  <>
+                    <div className="h-px bg-slate-200 my-2" />
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-1">Guardian Operations</p>
+                    {isAdmin && (
+                      <MenuLink 
+                        href="/admin/children" 
+                        icon={<UserCog className="w-5 h-5" />} 
+                        label="Registry Management" 
+                        onClick={() => setIsMenuOpen(false)} 
+                      />
+                    )}
+                    {isOperator && (
+                      <MenuLink 
+                        href="/control-room" 
+                        icon={<LayoutDashboard className="w-5 h-5" />} 
+                        label="Tactical Control Room" 
+                        onClick={() => setIsMenuOpen(false)} 
+                      />
+                    )}
+                  </>
+                )}
+
+                <div className="mt-auto pt-8 flex flex-col gap-4">
+                  {user && !user.isAnonymous ? (
+                    <Button 
+                      variant="outline" 
+                      className="w-full h-12 justify-start gap-4 font-black uppercase border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700" 
+                      onClick={handleLogout}
+                    >
+                      <LogOut className="w-5 h-5" /> Logout Node
+                    </Button>
+                  ) : (
+                    <Button 
+                      className="w-full h-12 justify-start gap-4 font-black uppercase bg-primary" 
+                      onClick={() => { setIsMenuOpen(false); router.push('/login'); }}
+                    >
+                      <ShieldCheck className="w-5 h-5" /> Guardian Login
+                    </Button>
+                  )}
+                  <p className="text-center text-[8px] font-black uppercase text-slate-400 tracking-[0.3em]">Guardian Protocol v2.5.1</p>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
           
-          {user && (
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 text-muted-foreground hover:text-destructive h-9">
-              <LogOut className="w-4 h-4" />
+          {/* Mobile Menu Icon */}
+          <div className="md:hidden">
+            <Button variant="ghost" size="icon" onClick={() => setIsMenuOpen(true)}>
+              <MenuIcon className="w-6 h-6 text-slate-600" />
             </Button>
-          )}
+          </div>
         </div>
       </div>
     </header>
+  );
+}
+
+function MenuLink({ href, icon, label, onClick }: { href: string; icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <Link 
+      href={href} 
+      onClick={onClick}
+      className="flex items-center gap-4 p-4 rounded-xl hover:bg-white hover:shadow-md transition-all border border-transparent hover:border-slate-200 group"
+    >
+      <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
+        {icon}
+      </div>
+      <span className="font-black uppercase text-xs tracking-widest text-slate-700">{label}</span>
+    </Link>
   );
 }
