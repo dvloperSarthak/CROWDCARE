@@ -59,10 +59,10 @@ export default function ChildrenList() {
         </head>
         <body>
           <div class="card">
-            ${photo ? \`<img src="\${photo}" class="photo" />\` : ''}
-            <h2>\${childName}</h2>
-            <h1>\${childId}</h1>
-            <img src="\${qrUrl}" class="qr" />
+            ${photo ? `<img src="${photo}" class="photo" />` : ''}
+            <h2>${childName}</h2>
+            <h1>${childId}</h1>
+            <img src="${qrUrl}" class="qr" />
             <div class="footer">Verified Guardian Protocol</div>
           </div>
           <script>
@@ -160,7 +160,7 @@ export default function ChildrenList() {
                                   {latestEvent.locationLatitude.toFixed(6)}, {latestEvent.locationLongitude.toFixed(6)}
                                 </p>
                                 <Button variant="link" size="sm" className="h-auto p-0 text-[9px] font-black uppercase text-primary items-center justify-start" asChild>
-                                  <a href={`https://www.google.com/maps?q=\${latestEvent.locationLatitude},\${latestEvent.locationLongitude}`} target="_blank" rel="noopener noreferrer">
+                                  <a href={`https://www.google.com/maps?q=${latestEvent.locationLatitude},${latestEvent.locationLongitude}`} target="_blank" rel="noopener noreferrer">
                                     Open in Maps <ExternalLink className="w-2 h-2 ml-1" />
                                   </a>
                                 </Button>
@@ -184,7 +184,7 @@ export default function ChildrenList() {
                                       </div>
                                     )}
                                     <div className="bg-white p-3 border-8 border-primary rounded-xl shadow-2xl">
-                                      <Image src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=\${child.id}`} alt="QR" width={100} height={100} className="rounded-sm" />
+                                      <Image src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${child.id}`} alt="QR" width={100} height={100} className="rounded-sm" />
                                     </div>
                                   </div>
                                   <div className="text-center space-y-1">
@@ -199,7 +199,7 @@ export default function ChildrenList() {
                                         <div className="flex justify-between items-center">
                                           <p className="font-mono text-xs font-bold text-slate-300">{latestEvent.locationLatitude.toFixed(6)}, {latestEvent.locationLongitude.toFixed(6)}</p>
                                           <Button size="sm" variant="outline" className="h-7 text-[9px] font-black uppercase border-primary/40 text-primary" asChild>
-                                            <a href={`https://www.google.com/maps?q=\${latestEvent.locationLatitude},\${latestEvent.locationLongitude}`} target="_blank" rel="noopener noreferrer">External Map</a>
+                                            <a href={`https://www.google.com/maps?q=${latestEvent.locationLatitude},${latestEvent.locationLongitude}`} target="_blank" rel="noopener noreferrer">External Map</a>
                                           </Button>
                                         </div>
                                       </div>

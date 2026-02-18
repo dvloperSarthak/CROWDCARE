@@ -302,10 +302,10 @@ export default function VolunteerApp() {
                       <div className="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
                         <div className="space-y-1">
                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3 text-primary animate-pulse" /> Precision Locked</p>
-                          <p className="font-mono text-[10px] font-bold text-slate-100">{currentCoords?.lat.toFixed(6)}, {currentCoords?.lng.toFixed(6)}</p>
+                          <p className="font-mono text-[10px] font-bold text-slate-100">{currentCoords.lat.toFixed(6)}, {currentCoords.lng.toFixed(6)}</p>
                         </div>
                         <Button size="sm" variant="link" className="h-auto p-0 text-[9px] font-black uppercase text-primary" asChild>
-                           <a href={`https://www.google.com/maps?q=${currentCoords?.lat},${currentCoords?.lng}`} target="_blank" rel="noopener noreferrer">Satellite View <ExternalLink className="w-2.5 h-2.5 ml-1" /></a>
+                           <a href={`https://www.google.com/maps?q=${currentCoords.lat},${currentCoords.lng}`} target="_blank" rel="noopener noreferrer">Satellite View <ExternalLink className="w-2.5 h-2.5 ml-1" /></a>
                         </Button>
                       </div>
 
@@ -363,7 +363,7 @@ export default function VolunteerApp() {
 
               <div className="flex flex-col gap-3">
                 <Button size="lg" className="w-full h-16 bg-teal-600 font-black uppercase text-xs" asChild>
-                  <a href={`https://www.google.com/maps?q=${currentCoords?.lat},${currentCoords?.lng}`} target="_blank" rel="noopener noreferrer">Open Satellite Feed</a>
+                  <a href={`https://www.google.com/maps?q=${currentCoords.lat},${currentCoords.lng}`} target="_blank" rel="noopener noreferrer">Open Satellite Feed</a>
                 </Button>
                 <Button onClick={() => { setScannedId(''); setIsSent(false); setActiveAlertId(null); }} variant="outline" className="w-full h-12 border-2 border-slate-900 font-black uppercase text-[10px]">Reset Terminal</Button>
               </div>
