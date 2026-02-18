@@ -37,18 +37,23 @@ export default function Home() {
       </div>
 
       <div className="w-full max-w-6xl space-y-8 relative z-10">
-        <div className="flex justify-center gap-4">
-          {!user ? (
-            <Button size="lg" className="gap-2 px-8 h-12 text-lg shadow-md" asChild>
-              <Link href="/login"><LogIn className="w-5 h-5" /> Staff Login</Link>
-            </Button>
-          ) : (
-            <div className="bg-white border rounded-full px-6 py-2 flex items-center gap-2 shadow-sm">
+        <div className="flex flex-col items-center gap-4">
+          {user && (
+            <div className="bg-white border rounded-full px-6 py-2 flex items-center gap-2 shadow-sm animate-entrance">
               <UserCircle className="w-5 h-5 text-primary" />
               <span className="font-bold text-sm">
                 Signed in as {user.isAnonymous ? 'Guest Volunteer' : user.email}
               </span>
             </div>
+          )}
+
+          {(!user || user.isAnonymous) && (
+            <Button size="lg" className="gap-2 px-8 h-12 text-lg shadow-md" asChild>
+              <Link href="/login">
+                <LogIn className="w-5 h-5" /> 
+                {user?.isAnonymous ? 'Sign in as Staff User' : 'Staff Login'}
+              </Link>
+            </Button>
           )}
         </div>
 
