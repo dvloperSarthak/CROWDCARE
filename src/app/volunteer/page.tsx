@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -10,6 +11,7 @@ import { Camera, Send, MapPin, Signal, WifiOff, AlertTriangle, CheckCircle2, Loa
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, setDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
+import jsQR from 'jsqr';
 
 export default function VolunteerApp() {
   const { toast } = useToast();
@@ -21,31 +23,25 @@ export default function VolunteerApp() {
   const [isDispatching, setIsDispatching] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const requestRef = useRef<number>(null);
+  
   const db = useFirestore();
   const { user } = useUser();
 
   const startCamera = async () => {
     setIsScanning(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } 
+      });
       setHasCameraPermission(true);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute("playsinline", "true");
+        videoRef.current.play();
+        requestRef.current = requestAnimationFrame(tick);
       }
-      
-      // Realistically, we'd use a library like jsQR here. 
-      // For this "real" feel without adding heavy deps, we'll simulate the ID capture after the camera is live.
-      setTimeout(() => {
-        const mockIds = ['C2045', 'C2046', 'C1122', 'C8899'];
-        const capturedId = mockIds[Math.floor(Math.random() * mockIds.length)];
-        setScannedId(capturedId);
-        stopCamera();
-        toast({
-          title: "ID Captured",
-          description: `Guardian ID ${capturedId} scanned from QR.`,
-        });
-      }, 3000);
-
     } catch (error) {
       console.error('Error accessing camera:', error);
       setHasCameraPermission(false);
@@ -58,7 +54,40 @@ export default function VolunteerApp() {
     }
   };
 
+  const tick = () => {
+    if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+      const canvas = canvasRef.current;
+      const video = videoRef.current;
+      if (canvas) {
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        if (context) {
+          canvas.height = video.videoHeight;
+          canvas.width = video.videoWidth;
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "dontInvert",
+          });
+
+          if (code) {
+            setScannedId(code.data);
+            stopCamera();
+            toast({
+              title: "ID Captured",
+              description: `Guardian ID ${code.data} detected.`,
+            });
+            return; // Stop the loop
+          }
+        }
+      }
+    }
+    requestRef.current = requestAnimationFrame(tick);
+  };
+
   const stopCamera = () => {
+    if (requestRef.current) {
+      cancelAnimationFrame(requestRef.current);
+    }
     if (videoRef.current && videoRef.current.srcObject) {
       const stream = videoRef.current.srcObject as MediaStream;
       stream.getTracks().forEach(track => track.stop());
@@ -139,6 +168,7 @@ export default function VolunteerApp() {
                 muted 
                 playsInline
               />
+              <canvas ref={canvasRef} className="hidden" />
               
               {isScanning && (
                 <div className="absolute inset-0 pointer-events-none z-10">
@@ -183,7 +213,7 @@ export default function VolunteerApp() {
                     className="h-16 text-3xl font-black text-center border-2 border-primary bg-white shadow-sm focus:ring-4 focus:ring-primary/10 transition-all uppercase" 
                     placeholder="SCAN ID..." 
                     value={scannedId}
-                    onChange={(e) => setScannedId(e.target.value.toUpperCase())}
+                    readOnly
                   />
                   {scannedId && (
                     <Button 
