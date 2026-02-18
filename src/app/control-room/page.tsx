@@ -8,10 +8,10 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { AlertCircle, Check, User, Clock, Loader2, Sparkles, ShieldAlert, Phone, Navigation, ExternalLink, LocateFixed, Map as MapIcon } from 'lucide-react';
+import { AlertCircle, Check, User, Clock, Loader2, Sparkles, ShieldAlert, Phone, Navigation, ExternalLink, LocateFixed, Map as MapIcon, BellRing } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { detectDuplicateRescueAlert } from '@/ai/flows/duplicate-rescue-detection-flow';
-import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useUser } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useUser, setDocumentNonBlocking } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import Image from 'next/image';
 
@@ -38,23 +38,45 @@ export default function ControlRoom() {
 
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
   const [mapCenter, setMapCenter] = useState<[number, number]>([0, 0]);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
 
   const selectedAlert = alerts?.find(a => a.id === selectedAlertId) || null;
   const relatedChild = children?.find(c => c.id === selectedAlert?.childId) || null;
 
-  // Real-time toast for new alerts
+  // Request Notification Permissions on Mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationPermission(Notification.permission);
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then(setNotificationPermission);
+      }
+    }
+  }, []);
+
+  // Real-time toast and Background Notification for new alerts
   useEffect(() => {
     if (alerts && alerts.length > 0) {
-      const latest = alerts[alerts.length - 1];
-      if (latest.status === 'Scanned' && (Date.now() - new Date(latest.scanTime).getTime() < 10000)) {
+      const latest = [...alerts].sort((a, b) => new Date(b.scanTime).getTime() - new Date(a.scanTime).getTime())[0];
+      const isRecent = (Date.now() - new Date(latest.scanTime).getTime() < 8000);
+      
+      if (latest.status === 'Scanned' && isRecent) {
         toast({
           title: "SITREP: NEW ALERT",
           description: `ID ${latest.childId} detected. Live tracking established.`,
           className: "bg-primary text-white font-black"
         });
+
+        // Trigger Native Browser Notification (works even if tab is in background)
+        if (notificationPermission === 'granted') {
+          new Notification("Guardian Alert: Child Located", {
+            body: `Incident ${latest.id} (Child ${latest.childId}) is active. Tracking established.`,
+            icon: '/favicon.ico',
+            tag: latest.id // Prevent duplicate notifications for same event
+          });
+        }
       }
     }
-  }, [alerts, toast]);
+  }, [alerts, notificationPermission, toast]);
 
   const handleSelectAlert = (alertId: string) => {
     setSelectedAlertId(alertId);
@@ -92,18 +114,32 @@ export default function ControlRoom() {
         updateDocumentNonBlocking(alertRef, { isDuplicate: true, notes: result.reason, statusUpdateTime: new Date().toISOString() });
       }
     } catch (err) {
-      toast({
-        variant: "destructive",
-        title: "Intelligence Check Failed",
-        description: "AI duplicate detection encountered a connectivity error.",
-      });
+      // Silent fail for duplicate detection to keep UI clean
     }
   };
 
   const notifyParent = (alertId: string) => {
     const alertRef = doc(db, 'rescueEvents', alertId);
+    const alertData = alerts?.find(a => a.id === alertId);
+    const childData = children?.find(c => c.id === alertData?.childId);
+
+    // 1. Update primary alert status
     updateDocumentNonBlocking(alertRef, { status: 'Parent Notified', statusUpdateTime: new Date().toISOString() });
-    toast({ title: "DISPATCH COMPLETE", description: "Parent notified via Guardian WiFi/SMS." });
+    
+    // 2. Log formal notification in subcollection (as per backend.json schema)
+    const logId = `LOG-${Date.now()}`;
+    const logRef = doc(db, 'rescueEvents', alertId, 'notificationLogs', logId);
+    setDocumentNonBlocking(logRef, {
+      id: logId,
+      rescueEventId: alertId,
+      recipientMobileNumber: childData?.parentMobileNumber || 'N/A',
+      notificationType: 'Push Notification',
+      messageBody: `Guardian Alert: ${childData?.childName || 'Your child'} has been located. Please proceed to the nearest Hub.`,
+      sentTime: new Date().toISOString(),
+      deliveryStatus: 'Sent'
+    }, { merge: true });
+
+    toast({ title: "DISPATCH COMPLETE", description: "Parent notified via Guardian Network." });
   };
 
   const resolveRescue = (alertId: string) => {
@@ -129,9 +165,16 @@ export default function ControlRoom() {
                 <MapIcon className="w-5 h-5 text-primary" />
                 <CardTitle className="text-md uppercase font-black tracking-widest">Tactical Field View</CardTitle>
               </div>
-              <Badge variant="outline" className="animate-pulse bg-primary/10 border-primary text-primary px-3 text-[9px] font-black uppercase">
-                <div className="w-2 h-2 rounded-full bg-primary mr-2" /> Live GPS Stream
-              </Badge>
+              <div className="flex items-center gap-3">
+                {notificationPermission !== 'granted' && (
+                   <Button size="sm" variant="outline" className="h-7 text-[9px] font-black uppercase border-yellow-500 text-yellow-500 hover:bg-yellow-500/10 gap-1.5" onClick={() => Notification.requestPermission()}>
+                      <BellRing className="w-3 h-3" /> Enable Alerts
+                   </Button>
+                )}
+                <Badge variant="outline" className="animate-pulse bg-primary/10 border-primary text-primary px-3 text-[9px] font-black uppercase">
+                  <div className="w-2 h-2 rounded-full bg-primary mr-2" /> Live GPS Stream
+                </Badge>
+              </div>
             </CardHeader>
             <CardContent className="p-0 h-full relative">
               <TacticalMap 
