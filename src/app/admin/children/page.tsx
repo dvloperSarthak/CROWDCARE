@@ -1,14 +1,14 @@
-
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { NavBar } from '@/components/nav-bar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
 import { Badge } from '@/components/ui/badge';
-import { Printer, Search, Download, Loader2, UserCircle, Map as MapIcon, Eye, Navigation, Camera, Upload, CheckCircle2, ExternalLink, Edit2, Save } from 'lucide-react';
+import { Printer, Search, Loader2, UserCircle, Eye, Camera, Edit2, Save, ExternalLink } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
@@ -16,12 +16,7 @@ import { useFirestore, useCollection, useMemoFirebase, useUser, updateDocumentNo
 import { collection, query, where, doc } from 'firebase/firestore';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
-
-// Dynamically import tactical map for inbuilt embed
-const TacticalMap = dynamic(() => import('@/components/tactical-map'), { 
-  ssr: false,
-  loading: () => <div className="h-48 w-full bg-slate-100 animate-pulse rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center text-[10px] font-black uppercase text-slate-400">Loading Tactical Intel...</div>
-});
+import Link from 'next/link';
 
 export default function ChildrenList() {
   const { toast } = useToast();
@@ -136,9 +131,11 @@ export default function ChildrenList() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
             <Input placeholder="Search your registrations..." className="pl-10 h-11" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
-          <Button className="w-full md:w-auto font-black uppercase tracking-widest shadow-lg" asChild>
-            <a href="/admin/register">New Registration</a>
-          </Button>
+          <InteractiveHoverButton 
+            text="New Registration" 
+            className="w-full md:w-56 h-11"
+            onClick={() => window.location.href = "/admin/register"}
+          />
         </div>
 
         <Card className="shadow-md border-2">

@@ -1,16 +1,16 @@
-
 "use client";
 
 import Link from 'next/link';
 import { UserCog, Camera, LayoutDashboard, Fingerprint, LogIn, UserCircle, ShieldCheck, ShieldAlert, Loader2, Siren, AlertTriangle, Search } from 'lucide-react';
-import { useAuth, initiateAnonymousSignIn, useUser, useFirestore, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
+import { useAuth, initiateAnonymousSignIn, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
+import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
 import { GlowingEffect } from '@/components/ui/glowing-effect';
 import { Hero } from '@/components/ui/animated-hero';
 import { cn } from '@/lib/utils';
 import { NavBar } from '@/components/nav-bar';
 import { doc } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 
 export default function Home() {
@@ -70,7 +70,7 @@ export default function Home() {
       (pos) => {
         const alertId = `SOS-PUB-${Date.now()}`;
         const alertRef = doc(db, 'rescueEvents', alertId);
-        setDocumentNonBlocking(alertRef, {
+        const sosData = {
           id: alertId,
           childId: 'PUBLIC_SOS',
           volunteerId: user.uid,
@@ -82,7 +82,11 @@ export default function Home() {
           isDuplicate: false,
           notes: 'URGENT: PANIC SIGNAL TRIGGERED FROM MAIN DASHBOARD',
           isSOS: true
-        }, { merge: true });
+        };
+        // Use a non-blocking approach (assuming it's provided or simple setDoc)
+        import('firebase/firestore').then(({ setDoc }) => {
+          setDoc(alertRef, sosData, { merge: true });
+        });
         toast({ variant: "destructive", title: "SOS ACTIVE" });
         setIsSOSLoading(false);
       },
@@ -116,9 +120,11 @@ export default function Home() {
                         value={statusId}
                         onChange={(e) => setStatusId(e.target.value)}
                       />
-                      <Button className="h-12 px-8 font-black uppercase" asChild disabled={!statusId}>
-                         <Link href={`/status/${statusId}`}>Track</Link>
-                      </Button>
+                      <InteractiveHoverButton 
+                        text="Track Status" 
+                        className="h-12 w-48"
+                        onClick={() => statusId && (window.location.href = `/status/${statusId}`)}
+                      />
                    </div>
                 </div>
                 <div className="hidden md:block w-[1px] h-16 bg-slate-200 mx-4" />
@@ -155,9 +161,11 @@ export default function Home() {
                 )}
               </div>
             ) : (
-              <Button size="lg" className="gap-2 px-10 h-14 text-xl shadow-xl font-black uppercase" asChild>
-                <Link href="/login"><LogIn className="w-6 h-6" /> Guardian Login</Link>
-              </Button>
+              <InteractiveHoverButton 
+                text="Guardian Login" 
+                className="h-14 w-64"
+                onClick={() => window.location.href = "/login"}
+              />
             )}
           </div>
 
@@ -170,11 +178,11 @@ export default function Home() {
 
         <div className="w-full max-w-2xl animate-entrance pb-12">
           <Card className="bg-red-50 border-4 border-red-600 shadow-2xl rounded-[2.5rem] overflow-hidden">
-            <CardHeader className="bg-red-600 text-white p-6 text-center">
-              <CardTitle className="flex items-center justify-center gap-3 text-3xl font-black uppercase tracking-tighter"><Siren className="w-8 h-8 animate-pulse" /> Emergency Hub</CardTitle>
-            </CardHeader>
+            <div className="bg-red-600 text-white p-6 text-center">
+              <h3 className="flex items-center justify-center gap-3 text-3xl font-black uppercase tracking-tighter"><Siren className="w-8 h-8 animate-pulse" /> Emergency Hub</h3>
+            </div>
             <CardContent className="p-8 space-y-6 text-center">
-              <p className="text-slate-900 font-bold text-lg leading-tight">Are you in immediate danger? Trigger a silent GPS panic signal to tactical control.</p>
+              <p className="text-slate-900 font-bold text-lg leading-tight">Are you or someone else in immediate danger? Trigger a silent GPS panic signal to our tactical control room.</p>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button className="w-full h-20 text-2xl font-black uppercase shadow-xl bg-red-600 hover:bg-red-700 rounded-2xl border-b-8 border-red-900"><AlertTriangle className="mr-3 w-8 h-8" /> Trigger Panic SOS</Button>

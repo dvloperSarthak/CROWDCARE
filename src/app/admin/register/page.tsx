@@ -1,16 +1,16 @@
-
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { NavBar } from '@/components/nav-bar';
 import { Button } from '@/components/ui/button';
+import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { UserPlus, CheckCircle2, Loader2, QrCode, Lock, ImagePlus, X, CloudUpload, Activity, Info, Sparkles } from 'lucide-react';
+import { CheckCircle2, Loader2, Lock, ImagePlus, CloudUpload, Activity, Info, Sparkles } from 'lucide-react';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import Image from 'next/image';
@@ -27,6 +27,7 @@ export default function AdminRegister() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [description, setDescription] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   
   const db = useFirestore();
   const { user, isUserLoading } = useUser();
@@ -50,7 +51,6 @@ export default function AdminRegister() {
     if (!previewUrl || !selectedFile) return;
     setIsExtracting(true);
     try {
-      // Convert to base64 for Genkit
       const reader = new FileReader();
       reader.readAsDataURL(selectedFile);
       reader.onload = async () => {
@@ -82,12 +82,11 @@ export default function AdminRegister() {
     }
   }
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!isAdmin) return;
+  async function handleSubmit() {
+    if (!isAdmin || !formRef.current) return;
 
     setLoading(true);
-    const formData = new FormData(e.currentTarget);
+    const formData = new FormData(formRef.current);
     const id = `C${Math.floor(Math.random() * 9000) + 1000}`;
     setGeneratedId(id);
 
@@ -171,7 +170,7 @@ export default function AdminRegister() {
           <CardHeader>
             <CardTitle className="text-2xl font-black uppercase">Register New ID</CardTitle>
           </CardHeader>
-          <form onSubmit={handleSubmit}>
+          <form ref={formRef} onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
             <CardContent className="space-y-6">
               <div className="flex flex-col items-center gap-4 py-4">
                 <div 
@@ -251,10 +250,12 @@ export default function AdminRegister() {
                 </div>
               </div>
             </CardContent>
-            <CardFooter>
-              <Button type="submit" className="w-full text-xl h-14 font-black uppercase" disabled={loading}>
-                {loading ? <Loader2 className="mr-2 animate-spin" /> : <><QrCode className="mr-2 w-6 h-6" /> Generate ID</>}
-              </Button>
+            <CardFooter className="flex justify-center pt-6">
+              <InteractiveHoverButton 
+                text={loading ? "Generating..." : "Generate ID"} 
+                className="w-full h-16"
+                disabled={loading}
+              />
             </CardFooter>
           </form>
         </Card>
