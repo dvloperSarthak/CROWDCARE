@@ -49,7 +49,8 @@ export default function ChildrenList() {
   async function uploadToGuardianNet(file: File): Promise<string | null> {
     try {
       const formData = new FormData();
-      formData.append('image', file, `guardian-id-${Date.now()}.jpg`);
+      // WordPress REST API usually expects 'file' or 'image' field. 'file' is more standard.
+      formData.append('file', file, `guardian-id-${Date.now()}.jpg`);
       
       const response = await fetch('https://imgup.infinityfreeapp.com/wp-json/imgup/v1/upload', {
         method: 'POST',
@@ -62,7 +63,8 @@ export default function ChildrenList() {
       if (!response.ok) return null;
       
       const result = await response.json();
-      return result.url || result.data?.url || result.link || null;
+      // Expanded detection for common WP upload result keys
+      return result.url || result.data?.url || result.link || result.source_url || result.guid?.rendered || null;
     } catch (error) {
       return null;
     }

@@ -58,7 +58,7 @@ export default function AdminRegister() {
   async function uploadToGuardianNet(file: File): Promise<string | null> {
     try {
       const formData = new FormData();
-      formData.append('image', file, `guardian-registry-${Date.now()}.jpg`);
+      formData.append('file', file, `guardian-registry-${Date.now()}.jpg`);
       
       const response = await fetch('https://imgup.infinityfreeapp.com/wp-json/imgup/v1/upload', {
         method: 'POST',
@@ -71,7 +71,7 @@ export default function AdminRegister() {
       if (!response.ok) return null;
       
       const result = await response.json();
-      return result.url || result.data?.url || result.link || null;
+      return result.url || result.data?.url || result.link || result.source_url || result.guid?.rendered || null;
     } catch (error) {
       return null;
     }

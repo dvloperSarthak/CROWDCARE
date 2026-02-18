@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "User": {
@@ -98,6 +99,11 @@
         "qrCodeUrl": {
           "type": "string",
           "description": "URL to the generated QR code image for this child, useful for reprinting.",
+          "format": "uri"
+        },
+        "photoUrl": {
+          "type": "string",
+          "description": "URL to the identification photo stored on GuardianNet.",
           "format": "uri"
         },
         "isActive": {
