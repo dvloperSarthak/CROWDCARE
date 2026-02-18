@@ -62,7 +62,7 @@ export default function VolunteerApp() {
   
   const db = useFirestore();
   const auth = useAuth();
-  const { user, isUserLoading } = useUser();
+  const { user, isUserLoading } = userUser();
 
   useEffect(() => {
     if (!isUserLoading && !user && auth) {
@@ -218,7 +218,7 @@ export default function VolunteerApp() {
       
       const response = await fetch('https://imgup.infinityfreeapp.com/wp-json/imgup/v1/upload', {
         method: 'POST',
-        headers: { 'X-API-Key': 'irHNL9Ibs5LyVUyI2WYXq1mCdiJ9EDxc' },
+        headers: { 'X-API-Key': 'hWGvlReZxTAx2I87po3Bjqi9lRHPfbqV' },
         body: formData
       });
 

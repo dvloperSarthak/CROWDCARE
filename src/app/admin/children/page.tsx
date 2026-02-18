@@ -54,7 +54,7 @@ export default function ChildrenList() {
       const response = await fetch('https://imgup.infinityfreeapp.com/wp-json/imgup/v1/upload', {
         method: 'POST',
         headers: {
-          'X-API-Key': 'irHNL9Ibs5LyVUyI2WYXq1mCdiJ9EDxc'
+          'X-API-Key': 'hWGvlReZxTAx2I87po3Bjqi9lRHPfbqV'
         },
         body: formData
       });
