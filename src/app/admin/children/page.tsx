@@ -1,18 +1,18 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { NavBar } from '@/components/nav-bar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Printer, Search, Download, Loader2, UserCircle, Map as MapIcon, Eye, Navigation } from 'lucide-react';
+import { Printer, Search, Download, Loader2, UserCircle, Map as MapIcon, Eye, Navigation, Camera, Upload, CheckCircle2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase, useUser, updateDocumentNonBlocking } from '@/firebase';
+import { collection, query, where, doc } from 'firebase/firestore';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
 
@@ -25,6 +25,8 @@ const TacticalMap = dynamic(() => import('@/components/tactical-map'), {
 export default function ChildrenList() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const db = useFirestore();
   const { user } = useUser();
 
@@ -43,6 +45,61 @@ export default function ChildrenList() {
     c.childName.toLowerCase().includes(searchTerm.toLowerCase()) || 
     c.id.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
+
+  async function uploadToGuardianNet(base64: string): Promise<string | null> {
+    try {
+      const res = await fetch(base64);
+      const blob = await res.blob();
+      
+      const formData = new FormData();
+      formData.append('image', blob, 'guardian-id-photo-update.jpg');
+      
+      const response = await fetch('https://imgup.infinityfreeapp.com/wp-json/imgup/v1/upload', {
+        method: 'POST',
+        headers: {
+          'X-API-Key': 'irHNL9Ibs5LyVUyI2WYXq1mCdiJ9EDxc'
+        },
+        body: formData
+      });
+
+      if (!response.ok) return null;
+      
+      const result = await response.json();
+      return result.url || result.data?.url || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  const handlePhotoUpdate = async (childId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingId(childId);
+    
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = reader.result as string;
+      const remoteUrl = await uploadToGuardianNet(base64);
+      
+      if (remoteUrl) {
+        const childDocRef = doc(db, 'children', childId);
+        updateDocumentNonBlocking(childDocRef, { photoUrl: remoteUrl });
+        toast({
+          title: "Registry Updated",
+          description: "Identification photo has been synced with GuardianNet.",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Upload Failed",
+          description: "Secure storage node rejected the transmission.",
+        });
+      }
+      setUploadingId(null);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handlePrint = (childId: string, childName: string, photo?: string) => {
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${childId}`;
@@ -168,7 +225,7 @@ export default function ChildrenList() {
                                 <Dialog>
                                   <DialogTrigger asChild>
                                     <Button variant="link" size="sm" className="h-auto p-0 text-[9px] font-black uppercase text-primary items-center justify-start gap-1">
-                                      <MapIcon className="w-2.5 h-2.5" /> View In-App Map
+                                      <MapIcon className="w-2.5 h-2.5" /> View Tactical Map
                                     </Button>
                                   </DialogTrigger>
                                   <DialogContent className="sm:max-w-2xl">
@@ -210,18 +267,39 @@ export default function ChildrenList() {
                                 <DialogHeader><DialogTitle className="text-center font-black uppercase">Guardian ID Profile: {child.id}</DialogTitle></DialogHeader>
                                 <div className="flex flex-col items-center justify-center p-6 space-y-6">
                                   <div className="flex gap-4 items-center">
-                                    {child.photoUrl && (
-                                      <div className="w-24 h-24 rounded-2xl border-4 border-primary overflow-hidden relative shadow-lg">
-                                        <Image src={child.photoUrl} alt={child.childName} fill className="object-cover" />
-                                      </div>
-                                    )}
+                                    <div className="relative">
+                                      {child.photoUrl ? (
+                                        <div className="w-24 h-24 rounded-2xl border-4 border-primary overflow-hidden relative shadow-lg">
+                                          <Image src={child.photoUrl} alt={child.childName} fill className="object-cover" />
+                                        </div>
+                                      ) : (
+                                        <div className="w-24 h-24 rounded-2xl border-4 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center">
+                                          <UserCircle className="w-12 h-12 text-slate-300" />
+                                        </div>
+                                      )}
+                                      <label 
+                                        className="absolute -bottom-2 -right-2 w-8 h-8 bg-primary rounded-full flex items-center justify-center shadow-lg cursor-pointer hover:bg-primary/90 transition-colors"
+                                        title="Update ID Photo"
+                                      >
+                                        {uploadingId === child.id ? <Loader2 className="w-4 h-4 text-white animate-spin" /> : <Camera className="w-4 h-4 text-white" />}
+                                        <input 
+                                          type="file" 
+                                          className="hidden" 
+                                          accept="image/*" 
+                                          onChange={(e) => handlePhotoUpdate(child.id, e)} 
+                                        />
+                                      </label>
+                                    </div>
                                     <div className="bg-white p-3 border-8 border-primary rounded-xl shadow-2xl">
                                       <Image src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${child.id}`} alt="QR" width={100} height={100} className="rounded-sm" />
                                     </div>
                                   </div>
-                                  <div className="text-center space-y-1">
+                                  <div className="text-center space-y-1 w-full">
                                     <p className="font-black text-3xl text-slate-900 tracking-tighter">{child.id}</p>
                                     <p className="font-black text-xl text-primary uppercase">{child.childName}</p>
+                                    {!child.photoUrl && (
+                                      <p className="text-[10px] font-bold text-destructive uppercase tracking-widest mt-2 animate-pulse">Photo Required for SITREP Verification</p>
+                                    )}
                                   </div>
 
                                   {latestEvent && (
