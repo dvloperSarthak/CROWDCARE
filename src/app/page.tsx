@@ -1,8 +1,7 @@
-
 "use client";
 
 import Link from 'next/link';
-import { UserCog, Camera, LayoutDashboard, Fingerprint, LogIn, UserCircle, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { UserCog, Camera, LayoutDashboard, Fingerprint, LogIn, UserCircle, ShieldCheck, ShieldAlert, Loader2 } from 'lucide-react';
 import { useAuth, initiateAnonymousSignIn, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { GlowingEffect } from '@/components/ui/glowing-effect';
@@ -13,19 +12,20 @@ import { doc } from 'firebase/firestore';
 
 export default function Home() {
   const auth = useAuth();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const db = useFirestore();
 
-  // Role verification (checks if current UID exists in roles collections)
+  // Role verification
   const adminRoleRef = useMemoFirebase(() => user ? doc(db, 'roles_admin', user.uid) : null, [db, user]);
   const operatorRoleRef = useMemoFirebase(() => user ? doc(db, 'roles_operator', user.uid) : null, [db, user]);
   
-  const { data: adminRole } = useDoc(adminRoleRef);
-  const { data: operatorRole } = useDoc(operatorRoleRef);
+  const { data: adminRole, isLoading: loadingAdmin } = useDoc(adminRoleRef);
+  const { data: operatorRole, isLoading: loadingOperator } = useDoc(operatorRoleRef);
 
   const isAdmin = !!adminRole;
   const isOperator = !!operatorRole;
   const isGuardian = isAdmin || isOperator;
+  const isLoadingRoles = loadingAdmin || loadingOperator;
 
   const handleGuestAccess = () => {
     if (auth && !user) {
@@ -44,17 +44,19 @@ export default function Home() {
 
         <div className="w-full max-w-6xl space-y-8 relative z-10" id="roles">
           <div className="flex flex-col items-center gap-6">
-            {user ? (
+            {isUserLoading ? (
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            ) : user ? (
               <div className="flex flex-col items-center gap-4 animate-entrance">
                 <div className="bg-white border-2 border-primary/20 rounded-full px-6 py-3 flex items-center gap-3 shadow-xl">
                   {isGuardian ? (
-                    <ShieldCheck className="w-6 h-6 text-primary" />
+                    <ShieldCheck className="w-6 h-6 text-teal-600" />
                   ) : (
-                    <UserCircle className="w-6 h-6 text-teal-600" />
+                    <UserCircle className="w-6 h-6 text-primary" />
                   )}
                   <div className="flex flex-col">
                     <span className="font-black text-xs uppercase tracking-widest text-slate-900 leading-none mb-1">
-                      {user.isAnonymous ? 'Guest Volunteer Node' : `Verified Guardian`}
+                      {isGuardian ? 'Verified Guardian Node' : 'Guest Volunteer'}
                     </span>
                     <span className="text-[10px] font-bold text-muted-foreground truncate max-w-[200px]">
                       {user.email || 'Anonymous ID: ' + user.uid.slice(0, 8)}
@@ -87,6 +89,7 @@ export default function Home() {
               title="Guardian Panel"
               description="Child Registration & QR Generation."
               isRestricted={!isAdmin}
+              isLoading={isLoadingRoles}
               subtext={!isAdmin ? "Guardian Credentials Required" : "Guardian Mode Active"}
             />
 
@@ -105,6 +108,7 @@ export default function Home() {
               title="Control Room"
               description="Live Monitoring & Log Tracking."
               isRestricted={!isOperator && !isAdmin}
+              isLoading={isLoadingRoles}
               subtext={!isOperator && !isAdmin ? "Operator Credentials Required" : "Dashboard Active"}
             />
           </div>
@@ -125,6 +129,7 @@ function RoleCard({
   title, 
   description, 
   isRestricted = false,
+  isLoading = false,
   subtext,
   onClick 
 }: { 
@@ -133,6 +138,7 @@ function RoleCard({
   title: string; 
   description: string;
   isRestricted?: boolean;
+  isLoading?: boolean;
   subtext?: string;
   onClick?: () => void;
 }) {
@@ -148,16 +154,16 @@ function RoleCard({
           borderWidth={3}
         />
         <Link 
-          href={isRestricted ? "#" : href} 
-          onClick={isRestricted ? undefined : onClick}
+          href={isRestricted || isLoading ? "#" : href} 
+          onClick={isRestricted || isLoading ? undefined : onClick}
           className={cn(
             "relative flex h-full flex-col justify-between overflow-hidden rounded-xl border bg-background p-6 shadow-sm transition-all group-hover:bg-slate-50/50",
-            isRestricted && "opacity-60 grayscale cursor-not-allowed"
+            (isRestricted || isLoading) && "opacity-60 grayscale cursor-not-allowed"
           )}
         >
           <div className="space-y-4">
             <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center transition-colors group-hover:bg-primary/10 group-hover:text-primary">
-              {icon}
+              {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : icon}
             </div>
             <div className="space-y-1">
               <h3 className="text-2xl font-black tracking-tight uppercase">{title}</h3>
