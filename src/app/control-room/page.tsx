@@ -6,17 +6,18 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { AlertCircle, Map, Bell, Check, User, Phone, ShieldAlert, Clock, Loader2, Sparkles } from 'lucide-react';
+import { AlertCircle, Map, Bell, Check, User, Phone, ShieldAlert, Clock, Loader2, Sparkles, UserCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { detectDuplicateRescueAlert } from '@/ai/flows/duplicate-rescue-detection-flow';
 import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
+import Image from 'next/image';
 
 export default function ControlRoom() {
   const { toast } = useToast();
   const db = useFirestore();
   
-  // Real-time feeds
+  // Real-time feeds from Firestore
   const alertsRef = useMemoFirebase(() => collection(db, 'rescueEvents'), [db]);
   const { data: alerts, isLoading: loadingAlerts } = useCollection(alertsRef);
   
@@ -29,7 +30,7 @@ export default function ControlRoom() {
   const selectedAlert = alerts?.find(a => a.id === selectedAlertId) || null;
   const relatedChild = children?.find(c => c.id === selectedAlert?.childId) || null;
 
-  // Track new alerts to show visual notification
+  // Track new alerts for notifications
   useEffect(() => {
     if (alerts && alerts.length > prevAlertsCount) {
       if (prevAlertsCount > 0) {
@@ -47,8 +48,6 @@ export default function ControlRoom() {
 
   const handleSelectAlert = (alert: any) => {
     setSelectedAlertId(alert.id);
-    
-    // Auto-check for duplicates if not already checked or if specifically requested
     if (alert.isDuplicate === undefined || alert.isDuplicate === false) {
       checkDuplicate(alert);
     }
@@ -183,9 +182,9 @@ export default function ControlRoom() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
-                      <TableHead className="w-24 font-black text-[10px] uppercase tracking-widest">ID</TableHead>
+                      <TableHead className="w-24 font-black text-[10px] uppercase tracking-widest">Target ID</TableHead>
                       <TableHead className="font-black text-[10px] uppercase tracking-widest">Location</TableHead>
-                      <TableHead className="font-black text-[10px] uppercase tracking-widest">Time</TableHead>
+                      <TableHead className="font-black text-[10px] uppercase tracking-widest">Identity</TableHead>
                       <TableHead className="font-black text-[10px] uppercase tracking-widest">Status</TableHead>
                       <TableHead className="font-black text-[10px] uppercase tracking-widest">AI Audit</TableHead>
                       <TableHead className="text-right font-black text-[10px] uppercase tracking-widest">Ops</TableHead>
@@ -197,32 +196,35 @@ export default function ControlRoom() {
                         <TableCell colSpan={6} className="h-48 text-center text-muted-foreground font-medium">No active field alerts currently. Monitor standing by.</TableCell>
                       </TableRow>
                     ) : (
-                      [...alerts].reverse().map((alert) => (
-                        <TableRow 
-                          key={alert.id} 
-                          className={`cursor-pointer transition-all duration-300 animate-entrance ${selectedAlertId === alert.id ? 'bg-primary/10' : ''}`}
-                          onClick={() => handleSelectAlert(alert)}
-                        >
-                          <TableCell className="font-black text-primary">{alert.childId}</TableCell>
-                          <TableCell className="flex items-center gap-2 text-xs font-bold text-slate-600">
-                             <Map className="w-3 h-3 text-primary" /> Sector 4 Gateway
-                          </TableCell>
-                          <TableCell className="font-medium text-xs text-slate-500">{new Date(alert.scanTime).toLocaleTimeString()}</TableCell>
-                          <TableCell>
-                            <Badge variant={alert.status === 'Child Reunited' ? 'secondary' : 'default'} className={`text-[10px] font-black h-5 uppercase tracking-tighter ${alert.status === 'Scanned' ? 'rescue-pulse bg-primary' : ''}`}>
-                              {alert.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {alert.isDuplicate === true && <Badge variant="destructive" className="bg-red-500 text-[9px] font-black h-5">DUPLICATE ALERT</Badge>}
-                            {alert.isDuplicate === false && <Badge variant="outline" className="text-teal-600 border-teal-600 text-[9px] font-black h-5">UNIQUE INCIDENT</Badge>}
-                            {alert.isDuplicate === undefined && <span className="text-[9px] text-slate-400 font-bold italic">Analyzing...</span>}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button size="sm" variant="ghost" className="h-8 text-xs font-black" onClick={(e) => { e.stopPropagation(); handleSelectAlert(alert); }}>INSPECT</Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      [...alerts].reverse().map((alert) => {
+                        const child = children?.find(c => c.id === alert.childId);
+                        return (
+                          <TableRow 
+                            key={alert.id} 
+                            className={`cursor-pointer transition-all duration-300 animate-entrance ${selectedAlertId === alert.id ? 'bg-primary/10' : ''}`}
+                            onClick={() => handleSelectAlert(alert)}
+                          >
+                            <TableCell className="font-black text-primary">{alert.childId}</TableCell>
+                            <TableCell className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                               <Map className="w-3 h-3 text-primary" /> Sector 4 Gateway
+                            </TableCell>
+                            <TableCell className="text-xs font-bold">{child?.childName || 'UNKNOWN'}</TableCell>
+                            <TableCell>
+                              <Badge variant={alert.status === 'Child Reunited' ? 'secondary' : 'default'} className={`text-[10px] font-black h-5 uppercase tracking-tighter ${alert.status === 'Scanned' ? 'rescue-pulse bg-primary' : ''}`}>
+                                {alert.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {alert.isDuplicate === true && <Badge variant="destructive" className="bg-red-500 text-[9px] font-black h-5">DUPLICATE</Badge>}
+                              {alert.isDuplicate === false && <Badge variant="outline" className="text-teal-600 border-teal-600 text-[9px] font-black h-5">UNIQUE</Badge>}
+                              {alert.isDuplicate === undefined && <span className="text-[9px] text-slate-400 font-bold italic">Analyzing...</span>}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button size="sm" variant="ghost" className="h-8 text-xs font-black">INSPECT</Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -234,8 +236,8 @@ export default function ControlRoom() {
         {/* Detailed Inspection Panel */}
         <div className="lg:col-span-4 space-y-6">
           <Card className={`shadow-2xl border-2 transition-all duration-500 ${!selectedAlert ? 'opacity-40 grayscale pointer-events-none scale-95 origin-top' : 'opacity-100 scale-100'}`}>
-            <CardHeader className="bg-slate-900 text-white rounded-t-lg border-b-4 border-primary">
-              <CardTitle className="flex items-center gap-2 text-lg">
+            <CardHeader className="bg-slate-900 text-white rounded-t-lg border-b-4 border-primary p-4">
+              <CardTitle className="flex items-center gap-2 text-md">
                 <ShieldAlert className="w-5 h-5 text-primary" />
                 SITUATION REPORT
               </CardTitle>
@@ -243,47 +245,54 @@ export default function ControlRoom() {
             <CardContent className="pt-6 space-y-6">
               {selectedAlert ? (
                 <>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Incident Target</p>
-                        <h3 className="text-4xl font-black text-primary tracking-tighter">{selectedAlert.childId}</h3>
-                      </div>
-                      <Badge className="bg-primary h-8 px-4 text-[10px] font-black uppercase tracking-widest shadow-md">{selectedAlert.status}</Badge>
-                    </div>
-
-                    {selectedAlert.isDuplicate && (
-                      <div className="bg-red-50 border-2 border-red-200 p-4 rounded-xl flex gap-3 animate-pulse">
-                        <AlertCircle className="w-6 h-6 text-red-600 shrink-0" />
-                        <div>
-                           <p className="text-[10px] font-black text-red-900 uppercase">AI Intelligence Warning</p>
-                           <p className="text-xs text-red-800 font-bold leading-tight">{selectedAlert.notes}</p>
+                  <div className="flex gap-4 items-start">
+                    <div className="w-24 h-24 rounded-xl border-2 border-primary overflow-hidden relative shadow-lg bg-slate-100 shrink-0">
+                      {relatedChild?.photoUrl ? (
+                        <Image src={relatedChild.photoUrl} alt={relatedChild.childName} fill className="object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                           <UserCircle className="w-12 h-12 text-slate-300" />
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Incident Target</p>
+                      <h3 className="text-3xl font-black text-primary tracking-tighter">{selectedAlert.childId}</h3>
+                      <Badge className="bg-primary px-3 text-[10px] font-black uppercase tracking-widest shadow-md">{selectedAlert.status}</Badge>
+                    </div>
+                  </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-slate-50 p-3 rounded-xl border-2 border-slate-100">
-                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Identity</p>
-                        <p className="font-black text-sm text-slate-900 truncate">{relatedChild?.childName || 'PENDING...'}</p>
-                      </div>
-                      <div className="bg-slate-50 p-3 rounded-xl border-2 border-slate-100">
-                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Time In</p>
-                        <p className="font-black text-sm text-slate-900 truncate">{new Date(selectedAlert.scanTime).toLocaleTimeString()}</p>
+                  {selectedAlert.isDuplicate && (
+                    <div className="bg-red-50 border-2 border-red-200 p-4 rounded-xl flex gap-3 animate-pulse">
+                      <AlertCircle className="w-6 h-6 text-red-600 shrink-0" />
+                      <div>
+                         <p className="text-[10px] font-black text-red-900 uppercase">AI Intelligence Warning</p>
+                         <p className="text-xs text-red-800 font-bold leading-tight">{selectedAlert.notes}</p>
                       </div>
                     </div>
+                  )}
 
-                    <div className="p-5 bg-teal-50 border-2 border-teal-100 rounded-2xl space-y-4 shadow-inner">
-                      <div className="flex items-center justify-between">
-                         <h4 className="text-[10px] font-black text-teal-900 uppercase tracking-widest flex items-center gap-2">
-                           <Phone className="w-3 h-3" /> Secure Contact
-                         </h4>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-xs font-bold text-teal-700 uppercase tracking-tighter">Parent/Guardian</p>
-                        <p className="text-lg font-black text-teal-950">{relatedChild?.parentName || 'DATA RESTRICTED'}</p>
-                        <p className="text-2xl font-black text-teal-600 tracking-tighter">{relatedChild?.parentMobileNumber || '--- --- ----'}</p>
-                      </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-slate-50 p-3 rounded-xl border-2 border-slate-100">
+                      <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Full Name</p>
+                      <p className="font-black text-sm text-slate-900 truncate">{relatedChild?.childName || 'PENDING...'}</p>
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-xl border-2 border-slate-100">
+                      <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Last Activity</p>
+                      <p className="font-black text-sm text-slate-900 truncate">{new Date(selectedAlert.scanTime).toLocaleTimeString()}</p>
+                    </div>
+                  </div>
+
+                  <div className="p-5 bg-teal-50 border-2 border-teal-100 rounded-2xl space-y-4 shadow-inner">
+                    <div className="flex items-center justify-between">
+                       <h4 className="text-[10px] font-black text-teal-900 uppercase tracking-widest flex items-center gap-2">
+                         <Phone className="w-3 h-3" /> Secure Contact
+                       </h4>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold text-teal-700 uppercase tracking-tighter">Parent/Guardian</p>
+                      <p className="text-lg font-black text-teal-950">{relatedChild?.parentName || 'DATA RESTRICTED'}</p>
+                      <p className="text-2xl font-black text-teal-600 tracking-tighter">{relatedChild?.parentMobileNumber || '--- --- ----'}</p>
                     </div>
                   </div>
 
