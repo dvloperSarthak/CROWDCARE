@@ -17,7 +17,9 @@ import {
   Navigation,
   ExternalLink,
   LocateFixed,
-  Radio
+  Radio,
+  Upload,
+  FileSearch
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking, updateDocumentNonBlocking, useAuth, initiateAnonymousSignIn } from '@/firebase';
@@ -119,6 +121,7 @@ export default function VolunteerApp() {
           if (code) {
             setScannedId(code.data);
             stopCamera();
+            toast({ title: "QR Identified", description: `Guardian ID ${code.data} detected.` });
             return;
           }
         }
@@ -134,6 +137,40 @@ export default function VolunteerApp() {
       videoRef.current.srcObject = null;
     }
     setIsScanning(false);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        if (context) {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          context.drawImage(img, 0, 0);
+          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
+          if (code) {
+            setScannedId(code.data);
+            stopCamera();
+            toast({ title: "QR Decoded", description: `ID ${code.data} identified from file.` });
+          } else {
+            toast({ 
+              variant: 'destructive', 
+              title: "Scan Failed", 
+              description: "No valid Guardian QR code found in this image. Ensure the code is clear and well-lit." 
+            });
+          }
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleRescue = () => {
@@ -194,13 +231,33 @@ export default function VolunteerApp() {
               )}
 
               {!isScanning && (
-                <div className="text-center space-y-6 z-20 px-6">
-                  <div className="bg-white/10 p-8 rounded-full inline-block backdrop-blur-xl border-2 border-white/20 shadow-2xl">
+                <div className="text-center space-y-4 z-20 px-6 w-full max-w-xs">
+                  <div className="bg-white/10 p-8 rounded-full inline-block backdrop-blur-xl border-2 border-white/20 shadow-2xl mb-2">
                     <Camera className="w-12 h-12 text-white" />
                   </div>
-                  <Button onClick={startCamera} className="w-full h-16 text-lg font-black uppercase tracking-widest shadow-2xl bg-primary hover:bg-primary/90 rounded-2xl">
-                    Launch Scanner
-                  </Button>
+                  <div className="flex flex-col gap-3">
+                    <Button onClick={startCamera} className="w-full h-16 text-lg font-black uppercase tracking-widest shadow-2xl bg-primary hover:bg-primary/90 rounded-2xl">
+                      Launch Scanner
+                    </Button>
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-white/20" /></div>
+                      <div className="relative flex justify-center text-[10px] uppercase font-black"><span className="bg-black px-2 text-white/40">OR</span></div>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full h-12 text-xs font-black uppercase tracking-widest bg-white/5 border-white/20 text-white hover:bg-white/10 rounded-xl gap-2"
+                    >
+                      <Upload className="w-4 h-4" /> Scan from File
+                    </Button>
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      className="hidden" 
+                      accept="image/*" 
+                      onChange={handleFileUpload} 
+                    />
+                  </div>
                 </div>
               )}
             </Card>
