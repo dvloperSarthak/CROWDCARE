@@ -37,7 +37,8 @@ import {
   PhoneCall,
   CloudUpload,
   X,
-  Clock
+  Clock,
+  CircleStop
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking, updateDocumentNonBlocking, useAuth, initiateAnonymousSignIn } from '@/firebase';
@@ -299,6 +300,13 @@ export default function VolunteerApp() {
     toast({ title: "MISSION SECURED", description: "Telemetry broadcast terminated." });
   };
 
+  const cancelCurrentScan = () => {
+    setScannedId('');
+    setStatusFile(null);
+    setStatusPreview(null);
+    toast({ description: "Scan cancelled. System reset." });
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20">
       <NavBar title="Guardian Field Terminal" backHref="/" />
@@ -327,6 +335,14 @@ export default function VolunteerApp() {
                 <div className="absolute inset-0 pointer-events-none z-10">
                   <div className="w-full h-1 bg-primary shadow-[0_0_20px_rgba(255,119,51,1)] animate-scan-line absolute" />
                   <div className="absolute inset-0 border-[60px] border-black/50" />
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    onClick={stopCamera} 
+                    className="absolute bottom-6 left-1/2 -translate-x-1/2 font-black uppercase tracking-widest text-[10px] shadow-lg"
+                  >
+                    Abort Scanner
+                  </Button>
                 </div>
               )}
 
@@ -365,13 +381,17 @@ export default function VolunteerApp() {
             {scannedId && (
               <div className="animate-entrance space-y-4">
                 <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-2xl space-y-4 border-b-8 border-primary relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-2"><Badge className="bg-primary font-black uppercase tracking-widest">{scannedId}</Badge></div>
+                  <div className="absolute top-0 right-0 p-2">
+                    <Button size="icon" variant="ghost" className="text-white/40 hover:text-white" onClick={cancelCurrentScan}>
+                      <X className="w-5 h-5" />
+                    </Button>
+                  </div>
                   <div className="flex gap-4 items-center">
                     <div className="w-20 h-20 rounded-2xl border-2 border-primary bg-slate-800 relative overflow-hidden flex-shrink-0">
                       {isLoadingChild ? <div className="w-full h-full flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div> : childData?.photoUrl ? <Image src={childData.photoUrl} alt="Target" fill className="object-cover" /> : <div className="w-full h-full flex items-center justify-center"><UserCircle className="w-10 h-10 text-slate-600" /></div>}
                     </div>
                     <div className="flex-1 space-y-1">
-                      <p className="text-[10px] font-black text-primary uppercase tracking-widest">Protocol Identified</p>
+                      <p className="text-[10px] font-black text-primary uppercase tracking-widest">Protocol Identified: {scannedId}</p>
                       <h3 className="text-2xl font-black uppercase tracking-tight truncate leading-tight">{isLoadingChild ? 'Checking Registry...' : (childData?.childName || 'Unrecognized Subject')}</h3>
                       
                       {!isLoadingChild && childData && (
@@ -388,7 +408,7 @@ export default function VolunteerApp() {
                           >
                             <a href={`tel:${childData.parentMobileNumber}`}>
                               <PhoneCall className="w-3 h-3 mr-1.5" />
-                              <span className="text-[9px] font-black uppercase">Call Parent</span>
+                              <span className="text-[9px] font-black uppercase">Call</span>
                             </a>
                           </Button>
                         </div>
@@ -423,7 +443,7 @@ export default function VolunteerApp() {
                           <CloudUpload className="w-6 h-6 text-slate-600" />
                         )}
                       </div>
-                      <p className="text-[9px] text-slate-500 italic">Capture current situation for Command Room intel.</p>
+                      <p className="text-[9px] text-slate-500 italic">Capture SITREP intel.</p>
                       <input type="file" ref={statusPhotoRef} className="hidden" accept="image/*" onChange={handleStatusFileChange} />
                     </div>
                   </div>
@@ -451,9 +471,14 @@ export default function VolunteerApp() {
                   )}
                 </div>
 
-                <Button onClick={handleRescue} disabled={isDispatching || !currentCoords} className="w-full h-24 text-2xl font-black uppercase tracking-widest shadow-2xl bg-primary hover:bg-primary/90 rounded-3xl border-b-8 border-orange-800">
-                  {isDispatching ? <Loader2 className="animate-spin w-8 h-8" /> : <><AlertTriangle className="mr-3 w-8 h-8" /> Initiate Broadcast</>}
-                </Button>
+                <div className="flex flex-col gap-3">
+                  <Button onClick={handleRescue} disabled={isDispatching || !currentCoords} className="w-full h-24 text-2xl font-black uppercase tracking-widest shadow-2xl bg-primary hover:bg-primary/90 rounded-3xl border-b-8 border-orange-800">
+                    {isDispatching ? <Loader2 className="animate-spin w-8 h-8" /> : <><AlertTriangle className="mr-3 w-8 h-8" /> Initiate Broadcast</>}
+                  </Button>
+                  <Button variant="ghost" onClick={cancelCurrentScan} className="font-black uppercase tracking-widest text-[10px] text-muted-foreground">
+                    Stop and Reset
+                  </Button>
+                </div>
               </div>
             )}
           </>
@@ -485,7 +510,10 @@ export default function VolunteerApp() {
                 <div className="flex items-center justify-center gap-2 text-[10px] font-black uppercase text-teal-600">
                   <Wifi className="w-4 h-4 animate-pulse" /> Continuous Data Stream Active
                 </div>
-                <Button onClick={closeMission} variant="outline" className="w-full h-12 border-2 border-slate-900 font-black uppercase text-[10px]">Close Mission Terminal</Button>
+                <Button onClick={closeMission} variant="destructive" className="w-full h-14 border-b-4 border-red-900 font-black uppercase text-sm shadow-xl flex gap-3">
+                  <CircleStop className="w-5 h-5" />
+                  Stop Sharing & Close
+                </Button>
               </div>
             </Card>
           </div>
