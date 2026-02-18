@@ -18,7 +18,6 @@ export default function ChildrenList() {
   const db = useFirestore();
   const { user } = useUser();
 
-  // Gated collection reference to prevent unauthenticated read attempts
   const childrenRef = useMemoFirebase(() => user ? collection(db, 'children') : null, [db, user]);
   const { data: children, isLoading } = useCollection(childrenRef);
 
@@ -94,14 +93,9 @@ export default function ChildrenList() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div className="relative w-full md:w-96">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-            <Input 
-              placeholder="Search by ID or Name..." 
-              className="pl-10" 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+            <Input placeholder="Search Registry..." className="pl-10 h-11" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
-          <Button className="w-full md:w-auto font-bold uppercase tracking-widest" variant="outline" asChild>
+          <Button className="w-full md:w-auto font-black uppercase tracking-widest shadow-lg" asChild>
             <a href="/admin/register">New Registration</a>
           </Button>
         </div>
@@ -109,30 +103,24 @@ export default function ChildrenList() {
         <Card className="shadow-md border-2">
           <CardContent className="p-0">
             {isLoading || !user ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-2">
+              <div className="flex flex-col items-center justify-center py-24 gap-2">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                <p className="text-muted-foreground">Syncing Central Registry...</p>
+                <p className="text-muted-foreground font-black uppercase text-[10px] tracking-widest">Syncing Central Registry...</p>
               </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50">
                     <TableHead className="w-16">Photo</TableHead>
-                    <TableHead>ID</TableHead>
-                    <TableHead>Child Name</TableHead>
-                    <TableHead>Parent</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Last Known Location</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
+                    <TableHead className="font-black text-[10px] uppercase tracking-widest">ID</TableHead>
+                    <TableHead className="font-black text-[10px] uppercase tracking-widest">Name</TableHead>
+                    <TableHead className="font-black text-[10px] uppercase tracking-widest">Last Known Field Position</TableHead>
+                    <TableHead className="text-right font-black text-[10px] uppercase tracking-widest">Ops</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-10 text-muted-foreground font-medium">
-                        No matches found in Registry.
-                      </TableCell>
-                    </TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-20 text-muted-foreground">Registry empty or no matches.</TableCell></TableRow>
                   ) : (
                     filtered.map((child) => {
                       const latestEvent = events
@@ -143,108 +131,69 @@ export default function ChildrenList() {
                         <TableRow key={child.id}>
                           <TableCell>
                             {child.photoUrl ? (
-                              <div className="w-10 h-10 rounded-full border border-primary overflow-hidden relative">
+                              <div className="w-10 h-10 rounded-full border border-primary overflow-hidden relative shadow-sm">
                                 <Image src={child.photoUrl} alt={child.childName} fill className="object-cover" />
                               </div>
                             ) : (
-                              <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
-                                <UserCircle className="w-6 h-6 text-slate-400" />
-                              </div>
+                              <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200"><UserCircle className="w-6 h-6 text-slate-400" /></div>
                             )}
                           </TableCell>
-                          <TableCell className="font-bold text-primary tracking-tighter">{child.id}</TableCell>
-                          <TableCell className="font-bold">{child.childName}</TableCell>
-                          <TableCell className="text-sm font-medium">{child.parentName}</TableCell>
-                          <TableCell className="text-sm font-mono">{child.parentMobileNumber}</TableCell>
-                          <TableCell className="text-[10px] font-mono font-bold text-slate-500">
+                          <TableCell className="font-black text-primary tracking-tighter text-lg">{child.id}</TableCell>
+                          <TableCell className="font-black text-sm uppercase">{child.childName}</TableCell>
+                          <TableCell>
                             {latestEvent ? (
                               <div className="flex flex-col gap-1">
-                                <div className="flex flex-col leading-tight">
-                                  <span className="flex items-center gap-1 text-primary"><MapPin className="w-2 h-2" /> {latestEvent.locationLatitude.toFixed(6)}</span>
-                                  <span className="ml-3">{latestEvent.locationLongitude.toFixed(6)}</span>
-                                </div>
+                                <p className="font-mono text-[10px] font-bold text-slate-700 leading-tight">
+                                  {latestEvent.locationLatitude.toFixed(6)}, {latestEvent.locationLongitude.toFixed(6)}
+                                </p>
                                 <Button variant="link" size="sm" className="h-auto p-0 text-[9px] font-black uppercase text-primary items-center justify-start" asChild>
                                   <a href={`https://www.google.com/maps?q=${latestEvent.locationLatitude},${latestEvent.locationLongitude}`} target="_blank" rel="noopener noreferrer">
-                                    View Map <ExternalLink className="w-2 h-2 ml-1" />
+                                    Open in Maps <ExternalLink className="w-2 h-2 ml-1" />
                                   </a>
                                 </Button>
                               </div>
                             ) : (
-                              <span className="text-slate-300 italic">No Field Data</span>
+                              <span className="text-[10px] text-slate-300 font-bold uppercase italic">No Active Signal</span>
                             )}
                           </TableCell>
                           <TableCell className="text-right">
                             <Dialog>
                               <DialogTrigger asChild>
-                                <Button size="sm" variant="secondary" className="gap-2 font-bold uppercase text-[10px]">
-                                  <QrCode className="w-3 h-3" />
-                                  Inspect
-                                </Button>
+                                <Button size="sm" variant="secondary" className="gap-2 font-black uppercase text-[10px] h-8 shadow-sm">Inspect</Button>
                               </DialogTrigger>
                               <DialogContent className="sm:max-w-md">
-                                <DialogHeader>
-                                  <DialogTitle className="text-center font-black uppercase">Guardian ID Profile: {child.id}</DialogTitle>
-                                </DialogHeader>
+                                <DialogHeader><DialogTitle className="text-center font-black uppercase">Guardian ID Profile: {child.id}</DialogTitle></DialogHeader>
                                 <div className="flex flex-col items-center justify-center p-6 space-y-6">
-                                  <div className="flex gap-4 items-center w-full justify-center">
+                                  <div className="flex gap-4 items-center">
                                     {child.photoUrl && (
                                       <div className="w-24 h-24 rounded-2xl border-4 border-primary overflow-hidden relative shadow-lg">
                                         <Image src={child.photoUrl} alt={child.childName} fill className="object-cover" />
                                       </div>
                                     )}
-                                    <div className="bg-white p-4 border-8 border-primary rounded-xl shadow-2xl shrink-0">
-                                      <Image 
-                                        src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${child.id}`}
-                                        alt={`QR Code for ${child.id}`}
-                                        width={150}
-                                        height={150}
-                                        className="rounded-sm"
-                                      />
+                                    <div className="bg-white p-3 border-8 border-primary rounded-xl shadow-2xl">
+                                      <Image src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${child.id}`} alt="QR" width={100} height={100} className="rounded-sm" />
                                     </div>
                                   </div>
                                   <div className="text-center space-y-1">
                                     <p className="font-black text-3xl text-slate-900 tracking-tighter">{child.id}</p>
                                     <p className="font-black text-xl text-primary uppercase">{child.childName}</p>
-                                    <p className="text-muted-foreground text-[10px] font-black uppercase tracking-widest">
-                                      Registered: {new Date(child.registrationDate).toLocaleDateString()}
-                                    </p>
                                   </div>
 
                                   {latestEvent && (
-                                    <div className="w-full bg-slate-50 p-4 rounded-xl border-2 border-slate-100 space-y-2">
-                                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                                        <Navigation className="w-3 h-3 text-primary" /> Last Known Field Position
-                                      </p>
+                                    <div className="w-full bg-slate-900 p-4 rounded-xl border-2 border-primary/20 space-y-2">
+                                      <p className="text-[9px] font-black text-primary uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3" /> Field Intelligence</p>
                                       <div className="flex justify-between items-center">
-                                        <p className="font-mono text-xs font-bold text-slate-700">
-                                          {latestEvent.locationLatitude.toFixed(6)}, {latestEvent.locationLongitude.toFixed(6)}
-                                        </p>
-                                        <Button size="sm" variant="outline" className="h-7 text-[10px] font-black uppercase" asChild>
-                                          <a href={`https://www.google.com/maps?q=${latestEvent.locationLatitude},${latestEvent.locationLongitude}`} target="_blank" rel="noopener noreferrer">
-                                            Maps <ExternalLink className="w-3 h-3 ml-1" />
-                                          </a>
+                                        <p className="font-mono text-xs font-bold text-slate-300">{latestEvent.locationLatitude.toFixed(6)}, {latestEvent.locationLongitude.toFixed(6)}</p>
+                                        <Button size="sm" variant="outline" className="h-7 text-[9px] font-black uppercase border-primary/40 text-primary" asChild>
+                                          <a href={`https://www.google.com/maps?q=${latestEvent.locationLatitude},${latestEvent.locationLongitude}`} target="_blank" rel="noopener noreferrer">Satellite View</a>
                                         </Button>
                                       </div>
-                                      <p className="text-[9px] text-muted-foreground font-medium italic">
-                                        Reported: {new Date(latestEvent.scanTime).toLocaleString()}
-                                      </p>
                                     </div>
                                   )}
 
                                   <div className="flex gap-4 w-full pt-4">
-                                    <Button 
-                                      className="flex-1 gap-2 h-12 text-sm font-black uppercase" 
-                                      onClick={() => handlePrint(child.id, child.childName, child.photoUrl)}
-                                    >
-                                      <Printer className="w-4 h-4" /> Print
-                                    </Button>
-                                    <Button 
-                                      variant="outline" 
-                                      className="flex-1 gap-2 h-12 text-sm font-black uppercase"
-                                      onClick={() => handleExport(child.id)}
-                                    >
-                                      <Download className="w-4 h-4" /> Export
-                                    </Button>
+                                    <Button className="flex-1 h-12 text-xs font-black uppercase" onClick={() => handlePrint(child.id, child.childName, child.photoUrl)}><Printer className="w-4 h-4 mr-2" /> Print ID</Button>
+                                    <Button variant="outline" className="flex-1 h-12 text-xs font-black uppercase" onClick={() => handleExport(child.id)}><Download className="w-4 h-4 mr-2" /> Export</Button>
                                   </div>
                                 </div>
                               </DialogContent>
@@ -263,3 +212,4 @@ export default function ChildrenList() {
     </div>
   );
 }
+

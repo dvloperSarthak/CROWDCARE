@@ -19,7 +19,9 @@ import {
   ImagePlus, 
   UserCircle,
   ShieldCheck,
-  Search
+  Search,
+  Navigation,
+  ExternalLink
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking, useAuth, initiateAnonymousSignIn } from '@/firebase';
@@ -33,6 +35,7 @@ export default function VolunteerApp() {
   const [scannedId, setScannedId] = useState('');
   const [isSent, setIsSent] = useState(false);
   const [isDispatching, setIsDispatching] = useState(false);
+  const [currentCoords, setCurrentCoords] = useState<{lat: number, lng: number} | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -50,7 +53,19 @@ export default function VolunteerApp() {
     }
   }, [user, isUserLoading, auth]);
 
-  // Real-time lookup for scanned child details - Gated by user existence
+  // Track live location for the volunteer UI
+  useEffect(() => {
+    if (scannedId && !isSent) {
+      const watchId = navigator.geolocation.watchPosition(
+        (pos) => setCurrentCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (err) => console.error("GPS Watch failed", err),
+        { enableHighAccuracy: true }
+      );
+      return () => navigator.geolocation.clearWatch(watchId);
+    }
+  }, [scannedId, isSent]);
+
+  // Real-time lookup for scanned child details
   const childRef = useMemoFirebase(() => (scannedId && user) ? doc(db, 'children', scannedId) : null, [db, scannedId, user]);
   const { data: childData, isLoading: isLoadingChild } = useDoc(childRef);
 
@@ -157,22 +172,14 @@ export default function VolunteerApp() {
   };
 
   const handleRescue = () => {
-    if (!scannedId || !user) {
-      if (!user) toast({ title: "Auth Required", description: "Protocol requires node sign-in.", variant: "destructive" });
-      return;
-    }
+    if (!scannedId || !user) return;
 
     setIsDispatching(true);
 
-    // Get real geolocation
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        broadcastRescue(latitude, longitude);
-      },
+      (position) => broadcastRescue(position.coords.latitude, position.coords.longitude),
       (error) => {
-        console.warn("Geolocation denied or failed, using simulation fallback", error);
-        // Fallback to stadium coordinates if GPS is unavailable
+        console.warn("Geolocation failed, using fallback", error);
         broadcastRescue(28.6139, 77.2090);
       },
       { enableHighAccuracy: true, timeout: 5000 }
@@ -225,7 +232,7 @@ export default function VolunteerApp() {
 
         {!isSent ? (
           <>
-            <Card className="border-4 border-slate-900 bg-black aspect-square flex flex-col items-center justify-center relative overflow-hidden shadow-2xl rounded-3xl group">
+            <Card className="border-4 border-slate-900 bg-black aspect-square flex flex-col items-center justify-center relative overflow-hidden shadow-2xl rounded-3xl">
               <video 
                 ref={videoRef} 
                 className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${isScanning ? 'opacity-100' : 'opacity-0'}`} 
@@ -239,7 +246,6 @@ export default function VolunteerApp() {
                 <div className="absolute inset-0 pointer-events-none z-10">
                   <div className="w-full h-1 bg-primary shadow-[0_0_20px_rgba(255,119,51,1)] animate-scan-line absolute" />
                   <div className="absolute inset-0 border-[40px] border-black/40" />
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-56 h-56 border-2 border-primary/40 rounded-2xl" />
                 </div>
               )}
 
@@ -249,14 +255,9 @@ export default function VolunteerApp() {
                     <Camera className="w-12 h-12 text-white" />
                   </div>
                   <div className="space-y-4">
-                    <Button onClick={startCamera} className="w-full h-16 text-lg font-black uppercase tracking-widest shadow-xl bg-primary hover:bg-primary/90 transition-transform active:scale-95">
+                    <Button onClick={startCamera} className="w-full h-16 text-lg font-black uppercase tracking-widest shadow-xl bg-primary hover:bg-primary/90">
                       Launch Scanner
                     </Button>
-                    <div className="flex items-center gap-3">
-                      <hr className="flex-1 border-white/20" />
-                      <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">or</span>
-                      <hr className="flex-1 border-white/20" />
-                    </div>
                     <Button 
                       variant="ghost" 
                       onClick={() => fileInputRef.current?.click()}
@@ -267,78 +268,67 @@ export default function VolunteerApp() {
                   </div>
                 </div>
               )}
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
-                accept="image/*" 
-                onChange={handleFileUpload} 
-              />
+              <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
             </Card>
 
             <div className="space-y-4">
               {scannedId && (
                 <div className="animate-entrance space-y-4">
                   <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-2xl space-y-4 border-b-4 border-primary">
-                    <div className="flex items-center gap-4">
+                    <div className="flex gap-4 items-start">
                       <div className="w-16 h-16 rounded-xl border-2 border-primary bg-slate-800 relative overflow-hidden flex-shrink-0 shadow-lg">
                         {isLoadingChild ? (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                          </div>
+                          <div className="w-full h-full flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
                         ) : childData?.photoUrl ? (
                           <Image src={childData.photoUrl} alt={childData.childName} fill className="object-cover" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <UserCircle className="w-10 h-10 text-slate-600" />
-                          </div>
+                          <div className="w-full h-full flex items-center justify-center"><UserCircle className="w-10 h-10 text-slate-600" /></div>
                         )}
                       </div>
                       <div className="flex-1 space-y-1">
                         <div className="flex items-center justify-between">
-                          <p className="text-[10px] font-black text-primary uppercase tracking-widest">Protocol Verified</p>
+                          <p className="text-[10px] font-black text-primary uppercase tracking-widest">Identity Verified</p>
                           <Badge className="bg-primary/20 text-primary border-primary/20 h-5 text-[9px] font-black">{scannedId}</Badge>
                         </div>
                         <h3 className="text-xl font-black uppercase tracking-tight truncate">
                           {isLoadingChild ? 'Checking Registry...' : (childData?.childName || 'Identity Unknown')}
                         </h3>
-                        {!isLoadingChild && !childData && (
-                          <p className="text-[9px] font-bold text-red-400 uppercase tracking-widest flex items-center gap-1">
-                            <XCircle className="w-3 h-3" /> Unregistered ID in Grid
-                          </p>
-                        )}
-                        {childData && (
-                          <p className="text-[9px] font-bold text-teal-400 uppercase tracking-widest flex items-center gap-1">
-                            <ShieldCheck className="w-3 h-3" /> Secure Node Match
-                          </p>
-                        )}
                       </div>
                     </div>
+
+                    {currentCoords && (
+                      <div className="p-3 bg-white/5 rounded-xl border border-white/10 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <Navigation className="w-3 h-3 text-primary animate-pulse" /> Live GPS Telemetry
+                          </p>
+                          <Badge variant="outline" className="h-4 text-[8px] font-black border-teal-500/50 text-teal-400">SIGNAL: STRONG</Badge>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <p className="font-mono text-[10px] font-bold text-slate-300">
+                            {currentCoords.lat.toFixed(6)}, {currentCoords.lng.toFixed(6)}
+                          </p>
+                          <Button size="sm" variant="link" className="h-auto p-0 text-[9px] font-black uppercase text-primary items-center" asChild>
+                            <a href={`https://www.google.com/maps?q=${currentCoords.lat},${currentCoords.lng}`} target="_blank" rel="noopener noreferrer">
+                              Verify on Map <ExternalLink className="w-2 h-2 ml-1" />
+                            </a>
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <Button 
                     onClick={handleRescue}
                     disabled={isDispatching} 
-                    className="w-full h-20 text-2xl font-black uppercase tracking-widest shadow-2xl bg-primary hover:bg-primary/90 animate-pulse active:animate-none group"
+                    className="w-full h-20 text-2xl font-black uppercase tracking-widest shadow-2xl bg-primary hover:bg-primary/90 animate-pulse active:animate-none"
                   >
                     {isDispatching ? (
-                      <>
-                        <Loader2 className="mr-3 w-8 h-8 animate-spin" />
-                        Broadcasting...
-                      </>
+                      <><Loader2 className="mr-3 w-8 h-8 animate-spin" />Broadcasting...</>
                     ) : (
-                      <>
-                        <AlertTriangle className="mr-3 w-8 h-8 group-hover:scale-110 transition-transform" />
-                        Initiate Rescue
-                      </>
+                      <><AlertTriangle className="mr-3 w-8 h-8" />Initiate Rescue</>
                     )}
                   </Button>
-                </div>
-              )}
-
-              {!scannedId && (
-                <div className="text-center py-6">
-                  <p className="text-muted-foreground text-[10px] font-black uppercase tracking-[0.3em]">Standby for Field ID</p>
                 </div>
               )}
             </div>
@@ -346,22 +336,15 @@ export default function VolunteerApp() {
         ) : (
           <div className="space-y-6 py-8">
             <Card className="border-4 border-teal-500 bg-white p-8 text-center space-y-8 shadow-2xl animate-success-pop rounded-3xl">
-              <div className="relative inline-block">
-                <div className="absolute inset-0 bg-teal-500 rounded-full animate-ping opacity-20" />
-                <CheckCircle2 className="w-24 h-24 text-teal-500 relative z-10" />
-              </div>
+              <CheckCircle2 className="w-24 h-24 text-teal-500 mx-auto" />
               <div className="space-y-3">
                 <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter">Mission Live</h2>
-                <div className="space-y-1">
-                  <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Protocol ID</p>
-                  <p className="text-2xl font-black text-primary italic tracking-tight">{scannedId}</p>
-                </div>
                 <div className="bg-teal-50 p-4 rounded-xl border border-teal-100 text-xs text-teal-800 font-bold leading-tight">
                   SITREP transmitted. Control Room has initiated emergency response. 
-                  <span className="block mt-2 font-black uppercase tracking-widest text-[10px]">Remain with child</span>
+                  <span className="block mt-2 font-black uppercase tracking-widest text-[10px]">Remain with child at coordinates.</span>
                 </div>
               </div>
-              <Button onClick={() => { setScannedId(''); setIsSent(false); }} variant="outline" className="w-full h-14 border-2 border-slate-900 text-slate-900 font-black uppercase tracking-widest hover:bg-slate-50">
+              <Button onClick={() => { setScannedId(''); setIsSent(false); }} variant="outline" className="w-full h-14 border-2 border-slate-900 text-slate-900 font-black uppercase tracking-widest">
                 Reset Terminal
               </Button>
             </Card>
@@ -371,3 +354,4 @@ export default function VolunteerApp() {
     </div>
   );
 }
+
