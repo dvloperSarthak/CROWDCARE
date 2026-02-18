@@ -6,7 +6,7 @@ import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle, us
 import { cva, type VariantProps } from "class-variance-authority";
 import { ArrowRight, Mail, ShieldAlert, Lock, Eye, EyeOff, ArrowLeft, X, AlertCircle, PartyPopper, Loader } from "lucide-react";
 import { AnimatePresence, motion, useInView, Variants, Transition } from "motion/react";
-import { initiateEmailSignUp, useAuth } from "@/firebase";
+import { initiateEmailSignUp, initiateEmailSignIn, useAuth } from "@/firebase";
 
 // --- CONFETTI LOGIC ---
 import type { GlobalOptions as ConfettiGlobalOptions, CreateTypes as ConfettiInstance, Options as ConfettiOptions } from "canvas-confetti"
@@ -142,15 +142,22 @@ const GradientBackground = () => (
     </>
 );
 
-const modalSteps = [
-    { message: "Verifying Guardian credentials...", icon: <Loader className="w-12 h-12 text-primary animate-spin" /> },
+const signupSteps = [
+    { message: "Verifying credentials...", icon: <Loader className="w-12 h-12 text-primary animate-spin" /> },
     { message: "Securing account node...", icon: <Loader className="w-12 h-12 text-primary animate-spin" /> },
     { message: "Encrypting protocols...", icon: <Loader className="w-12 h-12 text-primary animate-spin" /> },
     { message: "Welcome, Guardian!", icon: <PartyPopper className="w-12 h-12 text-green-500" /> }
 ];
+
+const loginSteps = [
+    { message: "Authenticating node...", icon: <Loader className="w-12 h-12 text-primary animate-spin" /> },
+    { message: "Synchronizing...", icon: <Loader className="w-12 h-12 text-primary animate-spin" /> },
+    { message: "Welcome back!", icon: <PartyPopper className="w-12 h-12 text-green-500" /> }
+];
+
 const TEXT_LOOP_INTERVAL = 1.5;
 
-const DefaultLogo = () => ( <div className="bg-primary text-primary-foreground rounded-md p-1.5 shadow-lg"> <ShieldAlert className="h-4 w-4" /> </div> );
+const DefaultLogo = () => ( <div className="bg-primary text-primary-foreground rounded-md p-1.5 shadow-lg"> <ShieldAlert className="h-5 w-5" /> </div> );
 
 // --- MAIN COMPONENT ---
 interface AuthComponentProps {
@@ -167,6 +174,7 @@ export const AuthComponent = ({ logo = <DefaultLogo />, brandName = "Guardian Po
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [authStep, setAuthStep] = useState("email");
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [modalStatus, setModalStatus] = useState<'closed' | 'loading' | 'error' | 'success'>('closed');
   const [modalErrorMessage, setModalErrorMessage] = useState('');
   const confettiRef = useRef<ConfettiRef>(null);
@@ -190,31 +198,36 @@ export const AuthComponent = ({ logo = <DefaultLogo />, brandName = "Guardian Po
 
   const handleFinalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (modalStatus !== 'closed' || authStep !== 'confirmPassword') return;
+    if (modalStatus !== 'closed') return;
 
-    if (password !== confirmPassword) {
+    if (authMode === "signup" && password !== confirmPassword) {
         setModalErrorMessage("Passwords do not match!");
         setModalStatus('error');
-    } else {
-        setModalStatus('loading');
-        
-        try {
-            initiateEmailSignUp(auth, email, password);
-            
-            const loadingStepsCount = modalSteps.length - 1;
-            const totalDuration = loadingStepsCount * TEXT_LOOP_INTERVAL * 1000;
-            
-            setTimeout(() => {
-                fireSideCanons();
-                setModalStatus('success');
-                if (onSuccess) {
-                  setTimeout(onSuccess, 2000);
-                }
-            }, totalDuration);
-        } catch (err: any) {
-            setModalErrorMessage(err.message || "Authentication failed.");
-            setModalStatus('error');
+        return;
+    }
+
+    setModalStatus('loading');
+    
+    try {
+        if (authMode === "signup") {
+          initiateEmailSignUp(auth, email, password);
+        } else {
+          initiateEmailSignIn(auth, email, password);
         }
+        
+        const steps = authMode === "signup" ? signupSteps : loginSteps;
+        const totalDuration = (steps.length - 1) * TEXT_LOOP_INTERVAL * 1000;
+        
+        setTimeout(() => {
+            fireSideCanons();
+            setModalStatus('success');
+            if (onSuccess) {
+              setTimeout(onSuccess, 1500);
+            }
+        }, totalDuration);
+    } catch (err: any) {
+        setModalErrorMessage(err.message || "Authentication failed.");
+        setModalStatus('error');
     }
   };
 
@@ -222,7 +235,13 @@ export const AuthComponent = ({ logo = <DefaultLogo />, brandName = "Guardian Po
     if (authStep === 'email') {
         if (isEmailValid) setAuthStep("password");
     } else if (authStep === 'password') {
-        if (isPasswordValid) setAuthStep("confirmPassword");
+        if (isPasswordValid) {
+          if (authMode === "login") {
+            handleFinalSubmit(new Event('submit') as any);
+          } else {
+            setAuthStep("confirmPassword");
+          }
+        }
     }
   };
 
@@ -241,6 +260,13 @@ export const AuthComponent = ({ logo = <DefaultLogo />, brandName = "Guardian Po
     else if (authStep === 'password') setAuthStep('email');
   };
 
+  const toggleMode = () => {
+    setAuthMode(authMode === "login" ? "signup" : "login");
+    setAuthStep("email");
+    setPassword("");
+    setConfirmPassword("");
+  };
+
   const closeModal = () => {
     setModalStatus('closed');
     setModalErrorMessage('');
@@ -257,38 +283,41 @@ useEffect(() => {
     }
 }, [modalStatus]);
   
-  const Modal = () => (
-    <AnimatePresence>
-        {modalStatus !== 'closed' && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-card/80 border-4 border-border rounded-2xl p-8 w-full max-w-sm flex flex-col items-center gap-4 mx-2">
-                    {(modalStatus === 'error' || modalStatus === 'success') && <button onClick={closeModal} className="absolute top-2 right-2 p-1 text-muted-foreground hover:text-foreground transition-colors"><X className="w-5 h-5" /></button>}
-                    {modalStatus === 'error' && <>
-                        <AlertCircle className="w-12 h-12 text-destructive" />
-                        <p className="text-lg font-medium text-foreground text-center">{modalErrorMessage}</p>
-                        <GlassButton onClick={closeModal} size="sm" className="mt-4">Try Again</GlassButton>
-                    </>}
-                    {modalStatus === 'loading' && 
-                        <TextLoop interval={TEXT_LOOP_INTERVAL} stopOnEnd={true}>
-                            {modalSteps.slice(0, -1).map((step, i) => 
-                                <div key={i} className="flex flex-col items-center gap-4">
-                                    {step.icon}
-                                    <p className="text-lg font-medium text-foreground text-center">{step.message}</p>
-                                </div>
-                            )}
-                        </TextLoop>
-                    }
-                    {modalStatus === 'success' &&
-                        <div className="flex flex-col items-center gap-4">
-                            {modalSteps[modalSteps.length - 1].icon}
-                            <p className="text-lg font-medium text-foreground text-center">{modalSteps[modalSteps.length - 1].message}</p>
-                        </div>
-                    }
-                </motion.div>
-            </motion.div>
-        )}
-    </AnimatePresence>
-  );
+  const Modal = () => {
+    const steps = authMode === "signup" ? signupSteps : loginSteps;
+    return (
+      <AnimatePresence>
+          {modalStatus !== 'closed' && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                  <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="relative bg-card/80 border-4 border-border rounded-2xl p-8 w-full max-w-sm flex flex-col items-center gap-4 mx-2">
+                      {(modalStatus === 'error' || modalStatus === 'success') && <button onClick={closeModal} className="absolute top-2 right-2 p-1 text-muted-foreground hover:text-foreground transition-colors"><X className="w-5 h-5" /></button>}
+                      {modalStatus === 'error' && <>
+                          <AlertCircle className="w-12 h-12 text-destructive" />
+                          <p className="text-lg font-medium text-foreground text-center">{modalErrorMessage}</p>
+                          <GlassButton onClick={closeModal} size="sm" className="mt-4">Try Again</GlassButton>
+                      </>}
+                      {modalStatus === 'loading' && 
+                          <TextLoop interval={TEXT_LOOP_INTERVAL} stopOnEnd={true}>
+                              {steps.slice(0, -1).map((step, i) => 
+                                  <div key={i} className="flex flex-col items-center gap-4">
+                                      {step.icon}
+                                      <p className="text-lg font-medium text-foreground text-center">{step.message}</p>
+                                  </div>
+                              )}
+                          </TextLoop>
+                      }
+                      {modalStatus === 'success' &&
+                          <div className="flex flex-col items-center gap-4">
+                              {steps[steps.length - 1].icon}
+                              <p className="text-lg font-medium text-foreground text-center">{steps[steps.length - 1].message}</p>
+                          </div>
+                      }
+                  </motion.div>
+              </motion.div>
+          )}
+      </AnimatePresence>
+    );
+  };
 
   return (
     <div className="bg-background min-h-screen w-screen flex flex-col">
@@ -313,21 +342,23 @@ useEffect(() => {
             <fieldset disabled={modalStatus !== 'closed'} className="relative z-10 flex flex-col items-center gap-8 w-[280px] mx-auto p-4">
                 <AnimatePresence mode="wait">
                     {authStep === "email" && <motion.div key="email-content" initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: "easeOut" }} className="w-full flex flex-col items-center gap-4">
-                        <BlurFade delay={0.25 * 1} className="w-full"><div className="text-center"><p className="font-serif font-light text-4xl sm:text-5xl tracking-tight text-foreground whitespace-nowrap">Join the Guardians</p></div></BlurFade>
-                        <BlurFade delay={0.25 * 2}><p className="text-sm font-medium text-muted-foreground">Register your credentials</p></BlurFade>
-                        <BlurFade delay={0.25 * 4} className="w-[300px]"><div className="flex items-center w-full gap-2 py-2"><hr className="w-full border-border"/><span className="text-xs font-semibold text-muted-foreground">RESERVED ACCESS</span><hr className="w-full border-border"/></div></BlurFade>
+                        <BlurFade delay={0.25 * 1} className="w-full">
+                          <div className="text-center">
+                            <p className="font-serif font-light text-4xl sm:text-5xl tracking-tight text-foreground whitespace-nowrap">
+                              {authMode === "login" ? "Welcome Back" : "Join the Guardians"}
+                            </p>
+                          </div>
+                        </BlurFade>
+                        <BlurFade delay={0.25 * 2}><p className="text-sm font-medium text-muted-foreground">{authMode === "login" ? "Verify your node" : "Register your credentials"}</p></BlurFade>
+                        <BlurFade delay={0.25 * 4} className="w-[300px]"><div className="flex items-center w-full gap-2 py-2"><hr className="w-full border-border"/><span className="text-xs font-semibold text-muted-foreground uppercase">{authMode === "login" ? "Log In" : "Sign Up"}</span><hr className="w-full border-border"/></div></BlurFade>
                     </motion.div>}
-                    {authStep === "password" && <motion.div key="password-title" initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: "easeOut" }} className="w-full flex flex-col items-center text-center gap-4">
-                        <BlurFade delay={0} className="w-full"><div className="text-center"><p className="font-serif font-light text-4xl sm:text-5xl tracking-tight text-foreground whitespace-nowrap">Create your password</p></div></BlurFade>
-                        <BlurFade delay={0.25 * 1}><p className="text-sm font-medium text-muted-foreground">Secure your node with 6+ characters.</p></BlurFade>
-                    </motion.div>}
-                     {authStep === "confirmPassword" && <motion.div key="confirm-title" initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: "easeOut" }} className="w-full flex flex-col items-center text-center gap-4">
-                         <BlurFade delay={0} className="w-full"><div className="text-center"><p className="font-serif font-light text-4xl sm:text-5xl tracking-tight text-foreground whitespace-nowrap">One Last Step</p></div></BlurFade>
-                         <BlurFade delay={0.25 * 1}><p className="text-sm font-medium text-muted-foreground">Confirm your password to continue</p></BlurFade>
+                    {(authStep === "password" || authStep === "confirmPassword") && <motion.div key="password-title" initial={{ y: 6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease: "easeOut" }} className="w-full flex flex-col items-center text-center gap-4">
+                        <BlurFade delay={0} className="w-full"><div className="text-center"><p className="font-serif font-light text-4xl sm:text-5xl tracking-tight text-foreground whitespace-nowrap">{authStep === "confirmPassword" ? "One Last Step" : "Enter Password"}</p></div></BlurFade>
+                        <BlurFade delay={0.25 * 1}><p className="text-sm font-medium text-muted-foreground">{authStep === "confirmPassword" ? "Confirm your secure protocol" : "Secure your node connection"}</p></BlurFade>
                     </motion.div>}
                 </AnimatePresence>
                 
-                <form onSubmit={handleFinalSubmit} className="w-[300px] space-y-6">
+                <form onSubmit={(e) => { e.preventDefault(); handleProgressStep(); }} className="w-[300px] space-y-6">
                      <AnimatePresence>
                         {authStep !== 'confirmPassword' && <motion.div key="email-password-fields" exit={{ opacity: 0, filter: 'blur(4px)' }} transition={{ duration: 0.3, ease: "easeOut" }} className="w-full space-y-6">
                             <BlurFade delay={authStep === 'email' ? 0.25 * 5 : 0} inView={true} className="w-full">
@@ -375,13 +406,19 @@ useEffect(() => {
                                         {isConfirmPasswordValid ? <button type="button" aria-label="Toggle confirm password visibility" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="text-foreground/80 hover:text-foreground transition-colors p-2 rounded-full">{showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}</button> : <Lock className="h-5 w-5 text-foreground/80 flex-shrink-0" />}
                                     </div>
                                     <input ref={confirmPasswordInputRef} type={showConfirmPassword ? "text" : "password"} placeholder="Confirm Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="relative z-10 h-full w-0 flex-grow bg-transparent text-foreground placeholder:text-foreground/60 focus:outline-none" />
-                                    <div className={cn( "relative z-10 flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out", isConfirmPasswordValid ? "w-10 pr-1" : "w-0" )}><GlassButton type="submit" size="icon" aria-label="Finish sign-up" contentClassName="text-foreground/80 hover:text-foreground"><ArrowRight className="w-5 h-5" /></GlassButton></div>
+                                    <div className={cn( "relative z-10 flex-shrink-0 overflow-hidden transition-all duration-300 ease-in-out", isConfirmPasswordValid ? "w-10 pr-1" : "w-0" )}><GlassButton type="button" onClick={handleFinalSubmit} size="icon" aria-label="Finish sign-up" contentClassName="text-foreground/80 hover:text-foreground"><ArrowRight className="w-5 h-5" /></GlassButton></div>
                                 </div></div>
                             </div>
                             <BlurFade inView delay={0.2}><button type="button" onClick={handleGoBack} className="mt-4 flex items-center gap-2 text-sm text-foreground/70 hover:text-foreground transition-colors"><ArrowLeft className="w-4 h-4" /> Go back</button></BlurFade>
                         </BlurFade>}
                     </AnimatePresence>
                 </form>
+
+                <BlurFade delay={0.25 * 6} inView={true}>
+                  <button onClick={toggleMode} className="text-xs font-bold text-foreground/60 hover:text-foreground transition-colors">
+                    {authMode === "login" ? "Don't have an account? Sign Up" : "Already a Guardian? Log In"}
+                  </button>
+                </BlurFade>
             </fieldset>
         </div>
     </div>
