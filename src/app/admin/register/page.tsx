@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavBar } from '@/components/nav-bar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,8 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { UserPlus, CheckCircle2, Loader2, QrCode } from 'lucide-react';
-import { useFirestore, useUser, setDocumentNonBlocking } from '@/firebase';
+import { UserPlus, CheckCircle2, Loader2, QrCode, ShieldAlert, Lock } from 'lucide-react';
+import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
 
 export default function AdminRegister() {
@@ -19,18 +20,30 @@ export default function AdminRegister() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [generatedId, setGeneratedId] = useState('');
   const db = useFirestore();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
+
+  // Role verification
+  const roleRef = useMemoFirebase(() => user ? doc(db, 'roles_admin', user.uid) : null, [db, user]);
+  const { data: adminRole, isLoading: isLoadingRole } = useDoc(roleRef);
+
+  const isAdmin = !!adminRole;
+  const isAuthenticatedGuardian = user && !user.isAnonymous;
+
+  useEffect(() => {
+    if (!isUserLoading && !isLoadingRole) {
+      if (!isAuthenticatedGuardian || !isAdmin) {
+        toast({
+          variant: "destructive",
+          title: "Access Denied",
+          description: "Guardian credentials required for registration protocols.",
+        });
+      }
+    }
+  }, [isAuthenticatedGuardian, isAdmin, isUserLoading, isLoadingRole, toast]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!user) {
-      toast({
-        variant: "destructive",
-        title: "Not Authenticated",
-        description: "You must be signed in to register a child.",
-      });
-      return;
-    }
+    if (!isAuthenticatedGuardian || !isAdmin) return;
 
     setLoading(true);
     
@@ -52,20 +65,48 @@ export default function AdminRegister() {
     const childRef = doc(db, 'children', id);
     setDocumentNonBlocking(childRef, newChild, { merge: true });
     
-    // Artificial delay for animation feel
+    // Process sync with real-time feedback
     setTimeout(() => {
       setLoading(false);
       setIsSuccess(true);
       toast({
-        title: "Database Synced",
-        description: `Guardian ID ${id} is now live in the registry.`,
+        title: "Registry Updated",
+        description: `Guardian ID ${id} is now encrypted and live.`,
       });
 
-      // Navigate after some time to allow seeing the success state
       setTimeout(() => {
         router.push('/admin/children');
       }, 2500);
     }, 1200);
+  }
+
+  if (isUserLoading || isLoadingRole) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center">
+        <Loader2 className="w-12 h-12 animate-spin text-primary mb-4" />
+        <p className="text-muted-foreground font-black uppercase tracking-widest text-xs">Authenticating Protocol...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticatedGuardian || !isAdmin) {
+    return (
+      <div className="min-h-screen bg-background">
+        <NavBar title="Unauthorized Access" backHref="/" />
+        <main className="container max-w-md py-20 px-6 mx-auto text-center space-y-6">
+          <div className="mx-auto w-20 h-20 bg-destructive/10 rounded-full flex items-center justify-center">
+            <Lock className="w-10 h-10 text-destructive" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-black text-slate-900 uppercase">Restricted Area</h2>
+            <p className="text-muted-foreground">This terminal requires an authenticated Guardian Admin session. Please sign in with your credentials.</p>
+          </div>
+          <Button className="w-full h-12 font-bold" onClick={() => router.push('/login')}>
+            Guardian Login
+          </Button>
+        </main>
+      </div>
+    );
   }
 
   if (isSuccess) {
@@ -78,7 +119,7 @@ export default function AdminRegister() {
                <CheckCircle2 className="w-16 h-16 text-teal-600" />
             </div>
             <div className="space-y-2">
-              <h2 className="text-3xl font-black text-slate-900">Registered!</h2>
+              <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">Registered</h2>
               <p className="text-muted-foreground font-medium">Guardian ID generated and encrypted</p>
             </div>
             <div className="bg-slate-100 p-6 rounded-xl border-2 border-dashed border-slate-300">
@@ -104,13 +145,13 @@ export default function AdminRegister() {
             <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-2">
               <UserPlus className="w-6 h-6 text-primary" />
             </div>
-            <CardTitle className="text-2xl font-black">Register New Child</CardTitle>
+            <CardTitle className="text-2xl font-black uppercase tracking-tight">Register New ID</CardTitle>
           </CardHeader>
           <form onSubmit={handleSubmit}>
             <CardContent className="space-y-6">
               <div className="grid gap-2">
                 <Label htmlFor="name" className="text-xs uppercase font-black tracking-widest">Child's Full Name</Label>
-                <Input id="name" name="name" placeholder="Enter child's name" className="h-12 text-lg" required />
+                <Input id="name" name="name" placeholder="Enter child's name" className="h-12 text-lg font-bold" required />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="parentName" className="text-xs uppercase font-black tracking-widest">Parent / Guardian Name</Label>
@@ -132,7 +173,7 @@ export default function AdminRegister() {
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 animate-spin" />
-                    Processing...
+                    Transmitting...
                   </>
                 ) : (
                   <>

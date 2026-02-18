@@ -1,7 +1,8 @@
+
 "use client";
 
 import Link from 'next/link';
-import { UserCog, Camera, LayoutDashboard, Fingerprint, LogIn, UserCircle, ShieldCheck } from 'lucide-react';
+import { UserCog, Camera, LayoutDashboard, Fingerprint, LogIn, UserCircle, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { useAuth, initiateAnonymousSignIn, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { GlowingEffect } from '@/components/ui/glowing-effect';
@@ -42,44 +43,51 @@ export default function Home() {
         </div>
 
         <div className="w-full max-w-6xl space-y-8 relative z-10" id="roles">
-          <div className="flex flex-col items-center gap-4">
-            {user && (
-              <div className="flex flex-col items-center gap-2 animate-entrance">
-                <div className="bg-white border-2 border-primary/20 rounded-full px-6 py-2 flex items-center gap-2 shadow-lg">
+          <div className="flex flex-col items-center gap-6">
+            {user ? (
+              <div className="flex flex-col items-center gap-4 animate-entrance">
+                <div className="bg-white border-2 border-primary/20 rounded-full px-6 py-3 flex items-center gap-3 shadow-xl">
                   {isGuardian ? (
-                    <ShieldCheck className="w-5 h-5 text-primary" />
+                    <ShieldCheck className="w-6 h-6 text-primary" />
                   ) : (
-                    <UserCircle className="w-5 h-5 text-teal-600" />
+                    <UserCircle className="w-6 h-6 text-teal-600" />
                   )}
-                  <span className="font-black text-sm uppercase tracking-tight">
-                    {user.isAnonymous ? 'Guest Volunteer Session' : `Authenticated Guardian (${user.email})`}
-                  </span>
+                  <div className="flex flex-col">
+                    <span className="font-black text-xs uppercase tracking-widest text-slate-900 leading-none mb-1">
+                      {user.isAnonymous ? 'Guest Volunteer Node' : `Verified Guardian`}
+                    </span>
+                    <span className="text-[10px] font-bold text-muted-foreground truncate max-w-[200px]">
+                      {user.email || 'Anonymous ID: ' + user.uid.slice(0, 8)}
+                    </span>
+                  </div>
                 </div>
-                {isGuardian && (
-                  <span className="text-[10px] font-black text-primary bg-primary/10 px-3 py-1 rounded-full uppercase tracking-widest border border-primary/20">
-                    {isAdmin ? 'System Administrator' : 'Control Room Operator'}
-                  </span>
+                
+                {(!isGuardian || user.isAnonymous) && (
+                  <Button variant="outline" className="gap-2 h-10 px-6 font-bold border-primary text-primary hover:bg-primary/5" asChild>
+                    <Link href="/login">
+                       <ShieldAlert className="w-4 h-4" /> Guardian Authentication
+                    </Link>
+                  </Button>
                 )}
               </div>
-            )}
-
-            <div className="flex gap-4">
-              <Button size="lg" className="gap-2 px-8 h-12 text-lg shadow-md font-bold" asChild>
+            ) : (
+              <Button size="lg" className="gap-2 px-10 h-14 text-xl shadow-xl font-black uppercase tracking-widest" asChild>
                 <Link href="/login">
-                  <LogIn className="w-5 h-5" /> 
+                  <LogIn className="w-6 h-6" /> 
                   Guardian Login
                 </Link>
               </Button>
-            </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <RoleCard 
               href="/admin/register"
               icon={<UserCog className="w-6 h-6" />}
-              title="Guardian Admin"
+              title="Admin Panel"
               description="Child Registration & QR Generation."
               isRestricted={!isAdmin}
+              subtext={!isAdmin ? "Guardian Credentials Required" : "Admin Mode Active"}
             />
 
             <RoleCard 
@@ -88,6 +96,7 @@ export default function Home() {
               title="Volunteer App"
               description="QR Scanner & Rescue Dispatch."
               onClick={handleGuestAccess}
+              subtext="Public Access Allowed"
             />
 
             <RoleCard 
@@ -96,6 +105,7 @@ export default function Home() {
               title="Control Room"
               description="Live Monitoring & Log Tracking."
               isRestricted={!isOperator && !isAdmin}
+              subtext={!isOperator && !isAdmin ? "Operator Credentials Required" : "Dashboard Active"}
             />
           </div>
         </div>
@@ -115,6 +125,7 @@ function RoleCard({
   title, 
   description, 
   isRestricted = false,
+  subtext,
   onClick 
 }: { 
   href: string; 
@@ -122,6 +133,7 @@ function RoleCard({
   title: string; 
   description: string;
   isRestricted?: boolean;
+  subtext?: string;
   onClick?: () => void;
 }) {
   return (
@@ -136,8 +148,8 @@ function RoleCard({
           borderWidth={3}
         />
         <Link 
-          href={href} 
-          onClick={onClick}
+          href={isRestricted ? "#" : href} 
+          onClick={isRestricted ? undefined : onClick}
           className={cn(
             "relative flex h-full flex-col justify-between overflow-hidden rounded-xl border bg-background p-6 shadow-sm transition-all group-hover:bg-slate-50/50",
             isRestricted && "opacity-60 grayscale cursor-not-allowed"
@@ -148,14 +160,17 @@ function RoleCard({
               {icon}
             </div>
             <div className="space-y-1">
-              <h3 className="text-2xl font-black tracking-tight">{title}</h3>
+              <h3 className="text-2xl font-black tracking-tight uppercase">{title}</h3>
               <p className="text-muted-foreground font-medium text-sm">{description}</p>
             </div>
           </div>
-          {isRestricted && (
+          {subtext && (
             <div className="mt-4 pt-4 border-t border-dashed">
-              <p className="text-[10px] font-black text-destructive tracking-widest uppercase flex items-center gap-2">
-                Elevated Credentials Required
+              <p className={cn(
+                "text-[9px] font-black tracking-[0.2em] uppercase flex items-center gap-2",
+                isRestricted ? "text-destructive" : "text-teal-600"
+              )}>
+                {subtext}
               </p>
             </div>
           )}
