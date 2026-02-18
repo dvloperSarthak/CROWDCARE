@@ -7,7 +7,7 @@ import { NavBar } from '@/components/nav-bar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { QrCode, Printer, Search, Download, Loader2, UserCircle, MapPin, ExternalLink, Navigation } from 'lucide-react';
+import { QrCode, Printer, Search, Download, Loader2, UserCircle, MapPin, Navigation, Map as MapIcon, Eye } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
@@ -18,7 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 // Dynamically import tactical map for inbuilt embed
 const TacticalMap = dynamic(() => import('@/components/tactical-map'), { 
   ssr: false,
-  loading: () => <div className="h-48 w-full bg-slate-100 animate-pulse rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center text-[10px] font-black uppercase text-slate-400">Loading Map Intel...</div>
+  loading: () => <div className="h-48 w-full bg-slate-100 animate-pulse rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center text-[10px] font-black uppercase text-slate-400">Loading Tactical Intel...</div>
 });
 
 export default function ChildrenList() {
@@ -94,7 +94,7 @@ export default function ChildrenList() {
       toast({
         variant: "destructive",
         title: "Export Error",
-        description: "Failed to generate Guardian ID file. Please try again.",
+        description: "Failed to generate Guardian ID file.",
       });
     }
   };
@@ -127,7 +127,7 @@ export default function ChildrenList() {
                     <TableHead className="w-16">Photo</TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-widest">ID</TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-widest">Name</TableHead>
-                    <TableHead className="font-black text-[10px] uppercase tracking-widest">Last Known Field Position</TableHead>
+                    <TableHead className="font-black text-[10px] uppercase tracking-widest">Field Telemetry</TableHead>
                     <TableHead className="text-right font-black text-[10px] uppercase tracking-widest">Ops</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -159,11 +159,28 @@ export default function ChildrenList() {
                                 <p className="font-mono text-[10px] font-bold text-slate-700 leading-tight">
                                   {latestEvent.locationLatitude.toFixed(6)}, {latestEvent.locationLongitude.toFixed(6)}
                                 </p>
-                                <Button variant="link" size="sm" className="h-auto p-0 text-[9px] font-black uppercase text-primary items-center justify-start" asChild>
-                                  <a href={`https://www.google.com/maps?q=${latestEvent.locationLatitude},${latestEvent.locationLongitude}`} target="_blank" rel="noopener noreferrer">
-                                    Open in Maps <ExternalLink className="w-2 h-2 ml-1" />
-                                  </a>
-                                </Button>
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <Button variant="link" size="sm" className="h-auto p-0 text-[9px] font-black uppercase text-primary items-center justify-start gap-1">
+                                      <MapIcon className="w-2.5 h-2.5" /> View In-App Map
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent className="sm:max-w-2xl">
+                                    <DialogHeader>
+                                      <DialogTitle className="font-black uppercase tracking-tight">Tactical Field View: {child.id}</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="w-full h-[400px] rounded-xl overflow-hidden border-2 border-slate-900 shadow-2xl relative">
+                                      <TacticalMap 
+                                        alerts={[latestEvent]} 
+                                        center={[latestEvent.locationLatitude, latestEvent.locationLongitude]} 
+                                        zoom={17} 
+                                      />
+                                      <div className="absolute top-2 left-2 z-[1000] bg-slate-900 text-white p-2 rounded-lg border border-primary/20">
+                                        <p className="font-mono text-[10px] font-bold">POS: {latestEvent.locationLatitude.toFixed(6)}, {latestEvent.locationLongitude.toFixed(6)}</p>
+                                      </div>
+                                    </div>
+                                  </DialogContent>
+                                </Dialog>
                               </div>
                             ) : (
                               <span className="text-[10px] text-slate-300 font-bold uppercase italic">No Active Signal</span>
@@ -172,7 +189,7 @@ export default function ChildrenList() {
                           <TableCell className="text-right">
                             <Dialog>
                               <DialogTrigger asChild>
-                                <Button size="sm" variant="secondary" className="gap-2 font-black uppercase text-[10px] h-8 shadow-sm">Inspect</Button>
+                                <Button size="sm" variant="secondary" className="gap-2 font-black uppercase text-[10px] h-8 shadow-sm"><Eye className="w-3 h-3" /> Inspect</Button>
                               </DialogTrigger>
                               <DialogContent className="sm:max-w-md">
                                 <DialogHeader><DialogTitle className="text-center font-black uppercase">Guardian ID Profile: {child.id}</DialogTitle></DialogHeader>
@@ -194,13 +211,11 @@ export default function ChildrenList() {
 
                                   {latestEvent && (
                                     <div className="w-full space-y-3">
-                                      <div className="bg-slate-900 p-4 rounded-xl border-2 border-primary/20 space-y-2">
-                                        <p className="text-[9px] font-black text-primary uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3" /> Field Intelligence</p>
+                                      <div className="bg-slate-900 p-4 rounded-xl border-2 border-primary/20 space-y-2 shadow-inner">
+                                        <p className="text-[9px] font-black text-primary uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3 animate-pulse" /> Field Intelligence Locked</p>
                                         <div className="flex justify-between items-center">
                                           <p className="font-mono text-xs font-bold text-slate-300">{latestEvent.locationLatitude.toFixed(6)}, {latestEvent.locationLongitude.toFixed(6)}</p>
-                                          <Button size="sm" variant="outline" className="h-7 text-[9px] font-black uppercase border-primary/40 text-primary" asChild>
-                                            <a href={`https://www.google.com/maps?q=${latestEvent.locationLatitude},${latestEvent.locationLongitude}`} target="_blank" rel="noopener noreferrer">External Map</a>
-                                          </Button>
+                                          <Badge className="bg-primary/20 border-primary text-primary text-[8px] font-black uppercase">Live Tracking</Badge>
                                         </div>
                                       </div>
                                       
@@ -209,7 +224,7 @@ export default function ChildrenList() {
                                         <TacticalMap 
                                           alerts={[latestEvent]} 
                                           center={[latestEvent.locationLatitude, latestEvent.locationLongitude]} 
-                                          zoom={16} 
+                                          zoom={18} 
                                         />
                                       </div>
                                     </div>
