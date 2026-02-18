@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { GlowingEffect } from '@/components/ui/glowing-effect';
 import { Hero } from '@/components/ui/animated-hero';
 import { cn } from '@/lib/utils';
+import { NavBar } from '@/components/nav-bar';
 
 export default function Home() {
   const auth = useAuth();
@@ -21,64 +22,68 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center p-6 space-y-12 bg-slate-50 overflow-hidden">
-      {/* Animated Hero Section */}
-      <div className="relative z-10 w-full">
-        <Hero />
-      </div>
+    <div className="min-h-screen flex flex-col bg-slate-50 overflow-hidden">
+      <NavBar title="CrowdCare Guardian" />
+      
+      <main className="flex-1 flex flex-col items-center p-6 space-y-12">
+        {/* Animated Hero Section */}
+        <div className="relative z-10 w-full">
+          <Hero />
+        </div>
 
-      <div className="w-full max-w-6xl space-y-8 relative z-10" id="roles">
-        <div className="flex flex-col items-center gap-4">
-          {user && (
-            <div className="bg-white border rounded-full px-6 py-2 flex items-center gap-2 shadow-sm animate-entrance">
-              <UserCircle className="w-5 h-5 text-primary" />
-              <span className="font-bold text-sm">
-                Signed in as {user.isAnonymous ? 'Guest Volunteer' : user.email}
-              </span>
+        <div className="w-full max-w-6xl space-y-8 relative z-10" id="roles">
+          <div className="flex flex-col items-center gap-4">
+            {user && (
+              <div className="bg-white border rounded-full px-6 py-2 flex items-center gap-2 shadow-sm animate-entrance">
+                <UserCircle className="w-5 h-5 text-primary" />
+                <span className="font-bold text-sm">
+                  Signed in as {user.isAnonymous ? 'Guest Volunteer' : `Guardian (${user.email})`}
+                </span>
+              </div>
+            )}
+
+            <div className="flex gap-4">
+              <Button size="lg" className="gap-2 px-8 h-12 text-lg shadow-md" asChild>
+                <Link href="/login">
+                  <LogIn className="w-5 h-5" /> 
+                  Guardian Login
+                </Link>
+              </Button>
             </div>
-          )}
+          </div>
 
-          <div className="flex gap-4">
-            <Button size="lg" className="gap-2 px-8 h-12 text-lg shadow-md" asChild>
-              <Link href="/login">
-                <LogIn className="w-5 h-5" /> 
-                Guardian Login
-              </Link>
-            </Button>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <RoleCard 
+              href="/admin/register"
+              icon={<UserCog className="w-6 h-6" />}
+              title="Guardian Admin"
+              description="Child Registration & QR Generation."
+              isRestricted={!user || user.isAnonymous}
+            />
+
+            <RoleCard 
+              href="/volunteer"
+              icon={<Camera className="w-6 h-6" />}
+              title="Volunteer App"
+              description="QR Scanner & Rescue Dispatch."
+              onClick={handleGuestAccess}
+            />
+
+            <RoleCard 
+              href="/control-room"
+              icon={<LayoutDashboard className="w-6 h-6" />}
+              title="Control Room"
+              description="Live Monitoring & Log Tracking."
+              isRestricted={!user || user.isAnonymous}
+            />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <RoleCard 
-            href="/admin/register"
-            icon={<UserCog className="w-6 h-6" />}
-            title="Admin Panel"
-            description="Child Registration & QR Generation."
-            isRestricted={!user || user.isAnonymous}
-          />
-
-          <RoleCard 
-            href="/volunteer"
-            icon={<Camera className="w-6 h-6" />}
-            title="Volunteer App"
-            description="QR Scanner & Rescue Dispatch."
-            onClick={handleGuestAccess}
-          />
-
-          <RoleCard 
-            href="/control-room"
-            icon={<LayoutDashboard className="w-6 h-6" />}
-            title="Control Room"
-            description="Live Monitoring & Log Tracking."
-            isRestricted={!user || user.isAnonymous}
-          />
+        <div className="flex items-center gap-2 text-muted-foreground text-sm font-semibold relative z-10 pt-10 pb-10">
+          <Fingerprint className="w-4 h-4" />
+          <span>End-to-End Encrypted & Privacy Centric</span>
         </div>
-      </div>
-
-      <div className="flex items-center gap-2 text-muted-foreground text-sm font-semibold relative z-10 pt-10">
-        <Fingerprint className="w-4 h-4" />
-        <span>End-to-End Encrypted & Privacy Centric</span>
-      </div>
+      </main>
     </div>
   );
 }
