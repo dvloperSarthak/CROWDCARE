@@ -163,21 +163,30 @@ export default function ChildrenList() {
                                 <Dialog>
                                   <DialogTrigger asChild>
                                     <Button variant="link" size="sm" className="h-auto p-0 text-[9px] font-black uppercase text-primary items-center justify-start gap-1">
-                                      <MapIcon className="w-2.5 h-2.5" /> View In-App Map
+                                      <MapIcon className="w-2.5 h-2.5" /> View Inbuilt Map
                                     </Button>
                                   </DialogTrigger>
                                   <DialogContent className="sm:max-w-2xl">
                                     <DialogHeader>
-                                      <DialogTitle className="font-black uppercase tracking-tight">Tactical Field View: {child.id}</DialogTitle>
+                                      <DialogTitle className="font-black uppercase tracking-tight">Situational Intelligence: {child.id}</DialogTitle>
                                     </DialogHeader>
-                                    <div className="w-full h-[400px] rounded-xl overflow-hidden border-2 border-slate-900 shadow-2xl relative">
-                                      <TacticalMap 
-                                        alerts={[latestEvent]} 
-                                        center={[latestEvent.locationLatitude, latestEvent.locationLongitude]} 
-                                        zoom={17} 
-                                      />
-                                      <div className="absolute top-2 left-2 z-[1000] bg-slate-900 text-white p-2 rounded-lg border border-primary/20">
-                                        <p className="font-mono text-[10px] font-bold">POS: {latestEvent.locationLatitude.toFixed(6)}, {latestEvent.locationLongitude.toFixed(6)}</p>
+                                    <div className="space-y-4">
+                                      <div className="w-full h-[300px] rounded-xl overflow-hidden border-2 border-slate-900 shadow-xl relative">
+                                        <TacticalMap 
+                                          alerts={[latestEvent]} 
+                                          center={[latestEvent.locationLatitude, latestEvent.locationLongitude]} 
+                                          zoom={17} 
+                                        />
+                                      </div>
+                                      <div className="w-full h-[300px] rounded-xl overflow-hidden border-2 border-slate-900 shadow-xl">
+                                        <iframe
+                                          title="Google Maps Satellite Embed"
+                                          width="100%"
+                                          height="100%"
+                                          style={{ border: 0 }}
+                                          src={`https://maps.google.com/maps?q=${latestEvent.locationLatitude},${latestEvent.locationLongitude}&t=k&z=18&ie=UTF8&iwloc=&output=embed`}
+                                          allowFullScreen
+                                        ></iframe>
                                       </div>
                                     </div>
                                   </DialogContent>
@@ -220,13 +229,15 @@ export default function ChildrenList() {
                                         </div>
                                       </div>
                                       
-                                      {/* Inbuilt Map Embed */}
                                       <div className="w-full h-48 rounded-xl overflow-hidden border-2 border-slate-900 shadow-2xl relative">
-                                        <TacticalMap 
-                                          alerts={[latestEvent]} 
-                                          center={[latestEvent.locationLatitude, latestEvent.locationLongitude]} 
-                                          zoom={18} 
-                                        />
+                                        <iframe
+                                          title="Google Maps Situational Embed"
+                                          width="100%"
+                                          height="100%"
+                                          style={{ border: 0 }}
+                                          src={`https://maps.google.com/maps?q=${latestEvent.locationLatitude},${latestEvent.locationLongitude}&z=16&ie=UTF8&iwloc=&output=embed`}
+                                          allowFullScreen
+                                        ></iframe>
                                       </div>
                                     </div>
                                   )}

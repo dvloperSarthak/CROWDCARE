@@ -57,14 +57,12 @@ export default function VolunteerApp() {
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
 
-  // Authentication Protocol
   useEffect(() => {
     if (!isUserLoading && !user && auth) {
       initiateAnonymousSignIn(auth);
     }
   }, [user, isUserLoading, auth]);
 
-  // High-Precision Real-time GPS Tracking & Continuous Broadcast
   useEffect(() => {
     if (!navigator.geolocation) {
       setGpsAccuracy('none');
@@ -76,12 +74,10 @@ export default function VolunteerApp() {
         const newCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setCurrentCoords(newCoords);
         
-        // Signal Quality Logic
         if (pos.coords.accuracy < 15) setGpsAccuracy('high');
         else if (pos.coords.accuracy < 50) setGpsAccuracy('medium');
         else setGpsAccuracy('low');
 
-        // PERSISTENT LIVE BROADCAST: If a rescue is active, keep updating the cloud record
         if (activeAlertId && db) {
           setIsBroadcasting(true);
           const alertRef = doc(db, 'rescueEvents', activeAlertId);
@@ -105,16 +101,11 @@ export default function VolunteerApp() {
           description: message,
         });
       },
-      { 
-        enableHighAccuracy: true, 
-        maximumAge: 0, 
-        timeout: 10000 // Faster timeout for more aggressive reconnection
-      }
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
     );
     return () => navigator.geolocation.clearWatch(watchId);
   }, [activeAlertId, db, toast]);
 
-  // Real-time lookup for scanned child
   const childRef = useMemoFirebase(() => (scannedId && user) ? doc(db, 'children', scannedId) : null, [db, scannedId, user]);
   const { data: childData, isLoading: isLoadingChild } = useDoc(childRef);
 
@@ -313,17 +304,20 @@ export default function VolunteerApp() {
                     <div className="space-y-3">
                       <div className="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
                         <div className="space-y-1">
-                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3 text-primary animate-pulse" /> Coordinates Locked</p>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3 text-primary animate-pulse" /> Telemetry Locked</p>
                           <p className="font-mono text-[10px] font-bold text-slate-100">{currentCoords.lat.toFixed(6)}, {currentCoords.lng.toFixed(6)}</p>
                         </div>
                       </div>
 
-                      <div className="w-full h-32 rounded-xl overflow-hidden border-2 border-primary/20 relative shadow-inner">
-                        <TacticalMap 
-                          alerts={[]} 
-                          center={[currentCoords.lat, currentCoords.lng]} 
-                          zoom={17} 
-                        />
+                      <div className="w-full h-48 rounded-xl overflow-hidden border-2 border-primary/20 relative shadow-inner">
+                        <iframe
+                          title="Field Map Embed"
+                          width="100%"
+                          height="100%"
+                          style={{ border: 0 }}
+                          src={`https://maps.google.com/maps?q=${currentCoords.lat},${currentCoords.lng}&z=17&ie=UTF8&iwloc=&output=embed`}
+                          allowFullScreen
+                        ></iframe>
                       </div>
                     </div>
                   )}
@@ -342,22 +336,20 @@ export default function VolunteerApp() {
               <div className="space-y-3">
                 <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter leading-none">Broadcasting</h2>
                 <div className="bg-slate-900 text-teal-400 p-4 rounded-2xl border-2 border-teal-900/20 text-[10px] font-black uppercase tracking-widest leading-relaxed">
-                  Live satellite telemetry active.<br/>Control Room is tracking your movement.<br/>Maintain position until contacted.
+                  Live situational telemetry active.<br/>Maintain position until contacted.
                 </div>
               </div>
 
               {currentCoords && (
-                 <div className="w-full h-40 rounded-3xl overflow-hidden border-4 border-slate-900 shadow-xl relative">
-                    <TacticalMap 
-                      alerts={[]} 
-                      center={[currentCoords.lat, currentCoords.lng]} 
-                      zoom={18} 
-                    />
-                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-                      <div className="w-10 h-10 bg-teal-500/30 rounded-full animate-ping flex items-center justify-center">
-                        <div className="w-4 h-4 bg-teal-500 rounded-full border-2 border-white shadow-xl" />
-                      </div>
-                    </div>
+                 <div className="w-full h-48 rounded-3xl overflow-hidden border-4 border-slate-900 shadow-xl relative">
+                    <iframe
+                      title="Success Map Embed"
+                      width="100%"
+                      height="100%"
+                      style={{ border: 0 }}
+                      src={`https://maps.google.com/maps?q=${currentCoords.lat},${currentCoords.lng}&z=18&ie=UTF8&iwloc=&output=embed`}
+                      allowFullScreen
+                    ></iframe>
                  </div>
               )}
 

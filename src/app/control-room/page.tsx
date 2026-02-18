@@ -43,7 +43,6 @@ export default function ControlRoom() {
   const selectedAlert = alerts?.find(a => a.id === selectedAlertId) || null;
   const relatedChild = children?.find(c => c.id === selectedAlert?.childId) || null;
 
-  // Request Notification Permissions on Mount
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       setNotificationPermission(Notification.permission);
@@ -53,7 +52,6 @@ export default function ControlRoom() {
     }
   }, []);
 
-  // Real-time toast and Background Notification for new alerts
   useEffect(() => {
     if (alerts && alerts.length > 0) {
       const latest = [...alerts].sort((a, b) => new Date(b.scanTime).getTime() - new Date(a.scanTime).getTime())[0];
@@ -66,12 +64,11 @@ export default function ControlRoom() {
           className: "bg-primary text-white font-black"
         });
 
-        // Trigger Native Browser Notification (works even if tab is in background)
         if (notificationPermission === 'granted') {
           new Notification("Guardian Alert: Child Located", {
             body: `Incident ${latest.id} (Child ${latest.childId}) is active. Tracking established.`,
             icon: '/favicon.ico',
-            tag: latest.id // Prevent duplicate notifications for same event
+            tag: latest.id
           });
         }
       }
@@ -113,9 +110,7 @@ export default function ControlRoom() {
         const alertRef = doc(db, 'rescueEvents', newAlert.id);
         updateDocumentNonBlocking(alertRef, { isDuplicate: true, notes: result.reason, statusUpdateTime: new Date().toISOString() });
       }
-    } catch (err) {
-      // Silent fail for duplicate detection to keep UI clean
-    }
+    } catch (err) {}
   };
 
   const notifyParent = (alertId: string) => {
@@ -123,10 +118,8 @@ export default function ControlRoom() {
     const alertData = alerts?.find(a => a.id === alertId);
     const childData = children?.find(c => c.id === alertData?.childId);
 
-    // 1. Update primary alert status
     updateDocumentNonBlocking(alertRef, { status: 'Parent Notified', statusUpdateTime: new Date().toISOString() });
     
-    // 2. Log formal notification in subcollection (as per backend.json schema)
     const logId = `LOG-${Date.now()}`;
     const logRef = doc(db, 'rescueEvents', alertId, 'notificationLogs', logId);
     setDocumentNonBlocking(logRef, {
@@ -157,7 +150,6 @@ export default function ControlRoom() {
       
       <main className="container-fluid py-6 px-6 mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* Tactical Map - Realtime Tracking View */}
         <div className="lg:col-span-8 space-y-6">
           <Card className="shadow-2xl border-4 border-slate-900 h-[500px] overflow-hidden">
             <CardHeader className="bg-slate-900 text-white p-4 flex flex-row items-center justify-between border-b-4 border-primary">
@@ -224,7 +216,6 @@ export default function ControlRoom() {
           </Card>
         </div>
 
-        {/* Intelligence Side Panel */}
         <div className="lg:col-span-4 space-y-6">
           <Card className={`shadow-2xl border-4 transition-all duration-500 ${!selectedAlert ? 'opacity-40 grayscale pointer-events-none scale-95 origin-top' : 'opacity-100 scale-100'}`}>
             <CardHeader className="bg-slate-900 text-white rounded-t-lg border-b-4 border-primary p-4">
@@ -247,13 +238,17 @@ export default function ControlRoom() {
                   <div className="p-4 bg-slate-900 rounded-xl border-2 border-primary/20 space-y-3 shadow-inner">
                     <div className="flex items-center justify-between">
                       <h4 className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3 animate-pulse" /> Live Telemetry</h4>
-                      <Button size="sm" variant="outline" className="h-7 text-[9px] font-black uppercase bg-transparent border-primary/40 text-primary" asChild>
-                        <a href={`https://www.google.com/maps?q=${selectedAlert.locationLatitude},${selectedAlert.locationLongitude}`} target="_blank" rel="noopener noreferrer">Satellite View</a>
-                      </Button>
+                      <Badge className="bg-primary/20 border-primary text-primary text-[8px] font-black uppercase">Signal Locked</Badge>
                     </div>
-                    <div className="font-mono text-xs text-slate-300 font-bold bg-black/40 p-3 rounded border border-white/5 flex items-center justify-between">
-                      <span>{selectedAlert.locationLatitude.toFixed(8)}<br/>{selectedAlert.locationLongitude.toFixed(8)}</span>
-                      <LocateFixed className="w-5 h-5 text-primary" />
+                    <div className="w-full h-40 rounded-lg overflow-hidden border-2 border-slate-700 shadow-xl">
+                      <iframe
+                        title="Google Maps In-App View"
+                        width="100%"
+                        height="100%"
+                        style={{ border: 0 }}
+                        src={`https://maps.google.com/maps?q=${selectedAlert.locationLatitude},${selectedAlert.locationLongitude}&z=16&ie=UTF8&iwloc=&output=embed`}
+                        allowFullScreen
+                      ></iframe>
                     </div>
                   </div>
 
