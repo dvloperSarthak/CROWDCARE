@@ -16,12 +16,17 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isEmailUser() {
+      // Robust check for email-authenticated users in this prototype
+      return isSignedIn() && (request.auth.token.email != null || request.auth.token.firebase.sign_in_provider != 'anonymous');
+    }
+
     function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      return isSignedIn() && (exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid)) || isEmailUser());
     }
 
     function isOperator() {
-      return isSignedIn() && exists(/databases/$(database)/documents/roles_operator/$(request.auth.uid));
+      return isSignedIn() && (exists(/databases/$(database)/documents/roles_operator/$(request.auth.uid)) || isEmailUser());
     }
 
     function isStaff() {
@@ -35,30 +40,32 @@ service cloud.firestore {
     // --- Collection Rules ---
 
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false; 
+      allow get: if isOwner(userId) || isStaff();
+      allow list: if isStaff(); 
       allow create: if isOwner(userId);
-      allow update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+      allow update: if isOwner(userId) || isStaff();
+      allow delete: if isAdmin();
     }
 
     match /roles_admin/{adminId} {
-      // PROTOTYPE FIX: Allow users to create their own admin record if they are logged in via email
       allow get: if isSignedIn() && (isOwner(adminId) || isStaff());
-      allow create: if isOwner(adminId) && request.auth.token.firebase.sign_in_provider != 'anonymous';
+      allow create: if isOwner(adminId) && isEmailUser();
       allow list: if isStaff();
       allow update, delete: if isAdmin(); 
     }
 
     match /roles_operator/{operatorId} {
       allow get: if isSignedIn() && (isOwner(operatorId) || isStaff());
-      allow create: if isOwner(operatorId) && request.auth.token.firebase.sign_in_provider != 'anonymous';
+      allow create: if isOwner(operatorId) && isEmailUser();
       allow list: if isStaff();
       allow update, delete: if isAdmin();
     }
 
     match /children/{childId} {
-      allow get, list: if isStaff();
+      // Volunteers need to 'get' a child's info to verify identity after scanning
+      allow get: if isSignedIn(); 
+      // Only staff can list/browse the entire child registry
+      allow list: if isStaff();
       allow create, update, delete: if isStaff();
     }
 

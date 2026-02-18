@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -35,7 +34,7 @@ export default function AdminRegister() {
   const isAuthenticatedGuardian = user && !user.isAnonymous;
 
   useEffect(() => {
-    if (!isUserLoading && !isLoadingRole) {
+    if (!isUserLoading && !loadingAdmin) {
       if (!isAuthenticatedGuardian || !isAdmin) {
         toast({
           variant: "destructive",
@@ -44,7 +43,7 @@ export default function AdminRegister() {
         });
       }
     }
-  }, [isAuthenticatedGuardian, isAdmin, isUserLoading, isLoadingRole, toast]);
+  }, [isAuthenticatedGuardian, isAdmin, isUserLoading, loadingAdmin, toast]);
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -96,7 +95,7 @@ export default function AdminRegister() {
     }, 1200);
   }
 
-  if (isUserLoading || (isLoadingRole && !isEmailUser)) {
+  if (isUserLoading || (loadingAdmin && !isEmailUser)) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center">
         <Loader2 className="w-12 h-12 animate-spin text-primary mb-4" />
