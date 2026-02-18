@@ -6,7 +6,7 @@ import { NavBar } from '@/components/nav-bar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { QrCode, Printer, Search, Download, Loader2, UserCircle, MapPin } from 'lucide-react';
+import { QrCode, Printer, Search, Download, Loader2, UserCircle, MapPin, ExternalLink, Navigation } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
@@ -122,7 +122,7 @@ export default function ChildrenList() {
                     <TableHead>Child Name</TableHead>
                     <TableHead>Parent</TableHead>
                     <TableHead>Phone</TableHead>
-                    <TableHead>Location</TableHead>
+                    <TableHead>Last Known Location</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -158,9 +158,16 @@ export default function ChildrenList() {
                           <TableCell className="text-sm font-mono">{child.parentMobileNumber}</TableCell>
                           <TableCell className="text-[10px] font-mono font-bold text-slate-500">
                             {latestEvent ? (
-                              <div className="flex flex-col leading-tight">
-                                <span className="flex items-center gap-1"><MapPin className="w-2 h-2 text-primary" /> {latestEvent.locationLatitude.toFixed(4)}</span>
-                                <span className="ml-3">{latestEvent.locationLongitude.toFixed(4)}</span>
+                              <div className="flex flex-col gap-1">
+                                <div className="flex flex-col leading-tight">
+                                  <span className="flex items-center gap-1 text-primary"><MapPin className="w-2 h-2" /> {latestEvent.locationLatitude.toFixed(6)}</span>
+                                  <span className="ml-3">{latestEvent.locationLongitude.toFixed(6)}</span>
+                                </div>
+                                <Button variant="link" size="sm" className="h-auto p-0 text-[9px] font-black uppercase text-primary items-center justify-start" asChild>
+                                  <a href={`https://www.google.com/maps?q=${latestEvent.locationLatitude},${latestEvent.locationLongitude}`} target="_blank" rel="noopener noreferrer">
+                                    View Map <ExternalLink className="w-2 h-2 ml-1" />
+                                  </a>
+                                </Button>
                               </div>
                             ) : (
                               <span className="text-slate-300 italic">No Field Data</span>
@@ -202,7 +209,29 @@ export default function ChildrenList() {
                                       Registered: {new Date(child.registrationDate).toLocaleDateString()}
                                     </p>
                                   </div>
-                                  <div className="flex gap-4 w-full">
+
+                                  {latestEvent && (
+                                    <div className="w-full bg-slate-50 p-4 rounded-xl border-2 border-slate-100 space-y-2">
+                                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                        <Navigation className="w-3 h-3 text-primary" /> Last Known Field Position
+                                      </p>
+                                      <div className="flex justify-between items-center">
+                                        <p className="font-mono text-xs font-bold text-slate-700">
+                                          {latestEvent.locationLatitude.toFixed(6)}, {latestEvent.locationLongitude.toFixed(6)}
+                                        </p>
+                                        <Button size="sm" variant="outline" className="h-7 text-[10px] font-black uppercase" asChild>
+                                          <a href={`https://www.google.com/maps?q=${latestEvent.locationLatitude},${latestEvent.locationLongitude}`} target="_blank" rel="noopener noreferrer">
+                                            Maps <ExternalLink className="w-3 h-3 ml-1" />
+                                          </a>
+                                        </Button>
+                                      </div>
+                                      <p className="text-[9px] text-muted-foreground font-medium italic">
+                                        Reported: {new Date(latestEvent.scanTime).toLocaleString()}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  <div className="flex gap-4 w-full pt-4">
                                     <Button 
                                       className="flex-1 gap-2 h-12 text-sm font-black uppercase" 
                                       onClick={() => handlePrint(child.id, child.childName, child.photoUrl)}
