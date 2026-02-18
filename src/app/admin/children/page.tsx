@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { NavBar } from '@/components/nav-bar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
@@ -12,6 +13,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import Image from 'next/image';
+
+// Dynamically import tactical map for inbuilt embed
+const TacticalMap = dynamic(() => import('@/components/tactical-map'), { 
+  ssr: false,
+  loading: () => <div className="h-48 w-full bg-slate-100 animate-pulse rounded-xl border-2 border-dashed border-slate-300 flex items-center justify-center text-[10px] font-black uppercase text-slate-400">Loading Map Intel...</div>
+});
 
 export default function ChildrenList() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -180,13 +187,24 @@ export default function ChildrenList() {
                                   </div>
 
                                   {latestEvent && (
-                                    <div className="w-full bg-slate-900 p-4 rounded-xl border-2 border-primary/20 space-y-2">
-                                      <p className="text-[9px] font-black text-primary uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3" /> Field Intelligence</p>
-                                      <div className="flex justify-between items-center">
-                                        <p className="font-mono text-xs font-bold text-slate-300">{latestEvent.locationLatitude.toFixed(6)}, {latestEvent.locationLongitude.toFixed(6)}</p>
-                                        <Button size="sm" variant="outline" className="h-7 text-[9px] font-black uppercase border-primary/40 text-primary" asChild>
-                                          <a href={`https://www.google.com/maps?q=${latestEvent.locationLatitude},${latestEvent.locationLongitude}`} target="_blank" rel="noopener noreferrer">Satellite View</a>
-                                        </Button>
+                                    <div className="w-full space-y-3">
+                                      <div className="bg-slate-900 p-4 rounded-xl border-2 border-primary/20 space-y-2">
+                                        <p className="text-[9px] font-black text-primary uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3" /> Field Intelligence</p>
+                                        <div className="flex justify-between items-center">
+                                          <p className="font-mono text-xs font-bold text-slate-300">{latestEvent.locationLatitude.toFixed(6)}, {latestEvent.locationLongitude.toFixed(6)}</p>
+                                          <Button size="sm" variant="outline" className="h-7 text-[9px] font-black uppercase border-primary/40 text-primary" asChild>
+                                            <a href={`https://www.google.com/maps?q=${latestEvent.locationLatitude},${latestEvent.locationLongitude}`} target="_blank" rel="noopener noreferrer">External Map</a>
+                                          </Button>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Inbuilt Map Embed */}
+                                      <div className="w-full h-48 rounded-xl overflow-hidden border-2 border-slate-900 shadow-2xl relative">
+                                        <TacticalMap 
+                                          alerts={[latestEvent]} 
+                                          center={[latestEvent.locationLatitude, latestEvent.locationLongitude]} 
+                                          zoom={16} 
+                                        />
                                       </div>
                                     </div>
                                   )}
@@ -212,4 +230,3 @@ export default function ChildrenList() {
     </div>
   );
 }
-

@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { NavBar } from '@/components/nav-bar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -19,7 +20,8 @@ import {
   LocateFixed,
   Radio,
   Upload,
-  FileSearch
+  FileSearch,
+  Map as MapIcon
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking, updateDocumentNonBlocking, useAuth, initiateAnonymousSignIn } from '@/firebase';
@@ -27,6 +29,12 @@ import { doc } from 'firebase/firestore';
 import jsQR from 'jsqr';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+
+// Dynamically import map for inbuilt embed
+const TacticalMap = dynamic(() => import('@/components/tactical-map'), { 
+  ssr: false,
+  loading: () => <div className="h-32 w-full bg-slate-800 animate-pulse rounded-xl" />
+});
 
 export default function VolunteerApp() {
   const { toast } = useToast();
@@ -289,15 +297,36 @@ export default function VolunteerApp() {
                     </div>
                   </div>
 
-                  <div className="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
-                    <div className="space-y-1">
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3 text-primary animate-pulse" /> Precision Locked</p>
-                      <p className="font-mono text-[10px] font-bold text-slate-100">{currentCoords?.lat.toFixed(6)}, {currentCoords?.lng.toFixed(6)}</p>
+                  {currentCoords && (
+                    <div className="space-y-3">
+                      <div className="p-3 bg-white/5 rounded-xl border border-white/10 flex items-center justify-between">
+                        <div className="space-y-1">
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><Navigation className="w-3 h-3 text-primary animate-pulse" /> Precision Locked</p>
+                          <p className="font-mono text-[10px] font-bold text-slate-100">{currentCoords?.lat.toFixed(6)}, {currentCoords?.lng.toFixed(6)}</p>
+                        </div>
+                        <Button size="sm" variant="link" className="h-auto p-0 text-[9px] font-black uppercase text-primary" asChild>
+                           <a href={`https://www.google.com/maps?q=${currentCoords?.lat},${currentCoords?.lng}`} target="_blank" rel="noopener noreferrer">Satellite View <ExternalLink className="w-2.5 h-2.5 ml-1" /></a>
+                        </Button>
+                      </div>
+
+                      {/* Inbuilt Map Embed Preview */}
+                      <div className="w-full h-32 rounded-xl overflow-hidden border-2 border-primary/20 relative shadow-inner">
+                        <TacticalMap 
+                          alerts={[]} 
+                          center={[currentCoords.lat, currentCoords.lng]} 
+                          zoom={17} 
+                        />
+                        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                           <div className="w-6 h-6 bg-primary/40 rounded-full animate-ping flex items-center justify-center">
+                              <div className="w-3 h-3 bg-primary rounded-full border-2 border-white shadow-lg" />
+                           </div>
+                        </div>
+                        <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded text-[8px] font-black uppercase text-white flex items-center gap-1">
+                          <MapIcon className="w-2 h-2 text-primary" /> Signal Origin
+                        </div>
+                      </div>
                     </div>
-                    <Button size="sm" variant="link" className="h-auto p-0 text-[9px] font-black uppercase text-primary" asChild>
-                       <a href={`https://www.google.com/maps?q=${currentCoords?.lat},${currentCoords?.lng}`} target="_blank" rel="noopener noreferrer">Verify Map <ExternalLink className="w-2.5 h-2.5 ml-1" /></a>
-                    </Button>
-                  </div>
+                  )}
                 </div>
 
                 <Button onClick={handleRescue} disabled={isDispatching || !currentCoords} className="w-full h-24 text-2xl font-black uppercase tracking-widest shadow-2xl bg-primary hover:bg-primary/90 animate-pulse active:animate-none rounded-3xl border-b-8 border-orange-800">
@@ -316,9 +345,25 @@ export default function VolunteerApp() {
                   Broadcasting real-time GPS coordinates.<br/>Guardian Control is tracking your position.<br/>Remain at current coordinates.
                 </div>
               </div>
+
+              {currentCoords && (
+                 <div className="w-full h-40 rounded-3xl overflow-hidden border-4 border-slate-900 shadow-xl relative">
+                    <TacticalMap 
+                      alerts={[]} 
+                      center={[currentCoords.lat, currentCoords.lng]} 
+                      zoom={18} 
+                    />
+                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                      <div className="w-10 h-10 bg-teal-500/30 rounded-full animate-ping flex items-center justify-center">
+                        <div className="w-4 h-4 bg-teal-500 rounded-full border-2 border-white shadow-xl" />
+                      </div>
+                    </div>
+                 </div>
+              )}
+
               <div className="flex flex-col gap-3">
                 <Button size="lg" className="w-full h-16 bg-teal-600 font-black uppercase text-xs" asChild>
-                  <a href={`https://www.google.com/maps?q=${currentCoords?.lat},${currentCoords?.lng}`} target="_blank" rel="noopener noreferrer">View Your Live Signal</a>
+                  <a href={`https://www.google.com/maps?q=${currentCoords?.lat},${currentCoords?.lng}`} target="_blank" rel="noopener noreferrer">Open Satellite Feed</a>
                 </Button>
                 <Button onClick={() => { setScannedId(''); setIsSent(false); setActiveAlertId(null); }} variant="outline" className="w-full h-12 border-2 border-slate-900 font-black uppercase text-[10px]">Reset Terminal</Button>
               </div>
