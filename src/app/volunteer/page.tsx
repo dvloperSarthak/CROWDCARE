@@ -188,7 +188,8 @@ export default function VolunteerApp() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const img = new Image();
+      // Use window.Image to avoid conflict with Next.js Image component
+      const img = new window.Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');

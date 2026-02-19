@@ -102,7 +102,8 @@ export default function Home() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const img = new Image();
+      // Use window.Image to avoid conflict with Next.js Image component
+      const img = new window.Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
@@ -220,7 +221,7 @@ export default function Home() {
              </div>
              <CardContent className="p-8 flex flex-col md:flex-row gap-4 items-center">
                 <div className="flex-1 space-y-2">
-                   <p className="text-sm font-bold text-slate-600">Enter your child's Guardian ID or scan their QR to track their safety status in real-time.</p>
+                   <p className="text-sm font-bold text-slate-600">Enter your child's Guardian ID or scan their QR code to track their safety status in real-time.</p>
                    <div className="flex gap-2">
                       <Input 
                         placeholder="e.g., C1234" 
