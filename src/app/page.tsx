@@ -1,7 +1,8 @@
+
 "use client";
 
 import Link from 'next/link';
-import { UserCog, Camera, LayoutDashboard, Fingerprint, LogIn, UserCircle, ShieldCheck, ShieldAlert, Loader2, Siren, AlertTriangle, Search, QrCode, RefreshCw, Image as ImageIcon } from 'lucide-react';
+import { UserCog, Camera, LayoutDashboard, Fingerprint, LogIn, UserCircle, ShieldCheck, ShieldAlert, Loader2, Siren, AlertTriangle, Search, QrCode, RefreshCw, Image as ImageIcon, Upload } from 'lucide-react';
 import { useAuth, initiateAnonymousSignIn, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
@@ -30,16 +31,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import jsQR from 'jsqr';
 
 export default function Home() {
   const auth = useAuth();
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const db = useFirestore();
   const { toast } = useToast();
   const [isSOSLoading, setIsSOSLoading] = useState(false);
-  const [statusId, setStatusId] = useState('');
   const [isScanningQR, setIsScanningQR] = useState(false);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   
@@ -111,6 +110,7 @@ export default function Home() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
+      // Explicitly use window.Image to avoid conflict with Next.js Image component
       const img = new window.Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
@@ -122,7 +122,6 @@ export default function Home() {
           const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
           const code = jsQR(imageData.data, imageData.width, imageData.height);
           if (code) {
-            setStatusId(code.data);
             setIsScanningQR(false);
             window.location.href = `/status/${code.data}`;
           } else {
@@ -148,7 +147,6 @@ export default function Home() {
           const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
           const code = jsQR(imageData.data, imageData.width, imageData.height);
           if (code) {
-            setStatusId(code.data);
             setIsScanningQR(false);
             window.location.href = `/status/${code.data}`;
             return;
@@ -221,14 +219,18 @@ export default function Home() {
                 <Search className="w-5 h-5 text-primary" />
                 <h3 className="text-sm font-black text-white uppercase tracking-widest">Parent Status Hub</h3>
              </div>
-             <CardContent className="p-8 flex flex-col md:flex-row gap-4 items-center">
+             <CardContent className="p-8 flex flex-col md:flex-row gap-6 items-center">
                 <div className="flex-1 space-y-4">
-                   <p className="text-sm font-bold text-slate-600">Scan your child's Guardian ID QR code to track their safety status in real-time.</p>
-                   <div className="flex gap-2">
+                   <p className="text-sm font-bold text-slate-600">Securely track your child's safety status by scanning their ID or uploading an image of the QR code.</p>
+                   <div className="flex flex-col sm:flex-row gap-4">
                       <Button type="button" className="h-16 flex-1 bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-widest text-lg rounded-2xl shadow-xl gap-3 transition-all active:scale-95" onClick={handleOpenScanner}>
                         <QrCode className="w-8 h-8" /> Start Secure Scan
                       </Button>
                       
+                      <Button type="button" variant="outline" className="h-16 flex-1 border-2 border-slate-900 font-black uppercase tracking-widest text-lg rounded-2xl shadow-md gap-3 hover:bg-slate-50" onClick={() => galleryInputRef.current?.click()}>
+                        <Upload className="w-8 h-8 text-primary" /> Upload ID Image
+                      </Button>
+
                       <Dialog open={isScanningQR} onOpenChange={setIsScanningQR}>
                         <DialogContent className="sm:max-w-md bg-slate-950 border-4 border-primary text-white p-0 overflow-hidden">
                           <DialogHeader className="p-4 border-b border-white/10">
@@ -261,13 +263,6 @@ export default function Home() {
                                 <RefreshCw className="h-6 w-6" />
                               </Button>
                             </div>
-                            <input 
-                              type="file" 
-                              ref={galleryInputRef} 
-                              className="hidden" 
-                              accept="image/*" 
-                              onChange={handleGalleryUpload} 
-                            />
                           </div>
                           <div className="p-6 bg-slate-900 flex flex-col gap-4">
                             <p className="text-[10px] font-black uppercase text-slate-400 text-center">Position QR or upload from gallery</p>
@@ -283,6 +278,13 @@ export default function Home() {
                    <p className="text-xs font-medium">Find nearest Hub for manual verification.</p>
                 </div>
              </CardContent>
+             <input 
+                type="file" 
+                ref={galleryInputRef} 
+                className="hidden" 
+                accept="image/*" 
+                onChange={handleGalleryUpload} 
+              />
            </Card>
         </div>
 
@@ -293,7 +295,7 @@ export default function Home() {
               <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Tactical Role Selection</h2>
             </div>
             
-            {isUserLoading ? (
+            {isLoadingRoles ? (
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
             ) : user ? (
               <div className="flex flex-col items-center gap-4 animate-entrance">
