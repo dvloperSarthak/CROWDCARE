@@ -205,7 +205,7 @@ export default function Home() {
               
               <div className="absolute top-0 left-0 right-0 bg-slate-900/80 p-4 flex items-center justify-center gap-2 z-30">
                 <QrCode className="w-5 h-5 text-primary" />
-                <h3 className="text-[10px] font-black text-white uppercase tracking-widest">Secure Guardian Scanner</h3>
+                <h3 className="text-[10px] font-black text-white uppercase tracking-widest">Tactical Hub Scanner</h3>
               </div>
 
               {isScanning && (
