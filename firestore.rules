@@ -3,9 +3,11 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * CROWDCARE GUARDIAN TACTICAL RULES v4.0
+     * CROWDCARE GUARDIAN TACTICAL RULES v5.0
      * Globally authorizes all authenticated users (Staff, Volunteers, and Guests)
      * for full tactical operations across all collections.
+     * This ensures that any person acting as a volunteer or parent can access
+     * real-time safety data without permission interruptions.
      */
 
     function isSignedIn() {
