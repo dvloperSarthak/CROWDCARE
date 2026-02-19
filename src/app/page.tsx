@@ -165,15 +165,6 @@ export default function Home() {
     }
   };
 
-  const handleTrackStatus = (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (statusId) {
-      window.location.href = `/status/${statusId}`;
-    } else {
-      toast({ title: "ID Required", description: "Please enter a Guardian ID to track." });
-    }
-  };
-
   const triggerGlobalSOS = async () => {
     setIsSOSLoading(true);
     if (!user) {
@@ -231,17 +222,11 @@ export default function Home() {
                 <h3 className="text-sm font-black text-white uppercase tracking-widest">Parent Status Hub</h3>
              </div>
              <CardContent className="p-8 flex flex-col md:flex-row gap-4 items-center">
-                <div className="flex-1 space-y-2">
-                   <p className="text-sm font-bold text-slate-600">Enter your child's Guardian ID or scan their QR code to track their safety status in real-time.</p>
-                   <form onSubmit={handleTrackStatus} className="flex gap-2">
-                      <Input 
-                        placeholder="e.g., C1234" 
-                        className="h-12 text-lg font-black uppercase tracking-tighter"
-                        value={statusId}
-                        onChange={(e) => setStatusId(e.target.value)}
-                      />
-                      <Button type="button" variant="outline" className="h-12 w-12 p-0 border-2 border-slate-900 shrink-0" onClick={handleOpenScanner}>
-                        <QrCode className="w-6 h-6" />
+                <div className="flex-1 space-y-4">
+                   <p className="text-sm font-bold text-slate-600">Scan your child's Guardian ID QR code to track their safety status in real-time.</p>
+                   <div className="flex gap-2">
+                      <Button type="button" className="h-16 flex-1 bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-widest text-lg rounded-2xl shadow-xl gap-3 transition-all active:scale-95" onClick={handleOpenScanner}>
+                        <QrCode className="w-8 h-8" /> Start Secure Scan
                       </Button>
                       
                       <Dialog open={isScanningQR} onOpenChange={setIsScanningQR}>
@@ -290,13 +275,7 @@ export default function Home() {
                           </div>
                         </DialogContent>
                       </Dialog>
-
-                      <InteractiveHoverButton 
-                        type="submit"
-                        text="Track Status" 
-                        className="h-12 w-48 shrink-0"
-                      />
-                   </form>
+                   </div>
                 </div>
                 <div className="hidden md:block w-[1px] h-16 bg-slate-200 mx-4" />
                 <div className="text-center md:text-left space-y-1">

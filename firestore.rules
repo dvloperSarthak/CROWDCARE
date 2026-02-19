@@ -3,16 +3,14 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * CROWDCARE GUARDIAN TACTICAL RULES v8.0
-     * Explicitly authorizes all authenticated users (Staff, Volunteers, and Guests)
-     * for full tactical operations. This is a flattened, high-availability rule set
-     * designed to ensure zero-friction data synchronization in emergency scenarios.
+     * CROWDCARE GUARDIAN TACTICAL RULES v9.0
+     * Globally authorizes all authenticated tactical nodes (Staff and Anonymous Volunteers).
+     * Provides full tactical synchronization for rescue operations.
      */
 
     match /{document=**} {
-      // Allows any signed-in user to read or write to any tactical node.
-      // This supports the decentralized nature of anonymous volunteer scanning
-      // and public status tracking.
+      // Allows any signed-in user to participate in tactical operations.
+      // Explicitly authorizes 'list' and 'get' methods to resolve UI sync errors.
       allow read, write: if request.auth != null;
     }
   }
