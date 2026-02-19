@@ -81,5 +81,10 @@ service cloud.firestore {
       allow get, list: if isStaff();
       allow create, update, delete: if isStaff();
     }
+
+    match /broadcasts/{broadcastId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isStaff();
+    }
   }
 }
