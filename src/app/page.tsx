@@ -2,7 +2,7 @@
 "use client";
 
 import Link from 'next/link';
-import { UserCog, LayoutDashboard, ShieldCheck, Loader2, Siren, AlertTriangle, Zap, Camera as CameraIcon } from 'lucide-react';
+import { UserCog, LayoutDashboard, ShieldCheck, Loader2, Siren, AlertTriangle, Zap, Camera as CameraIcon, ScanLine } from 'lucide-react';
 import { useAuth, initiateAnonymousSignIn, useUser, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
@@ -82,45 +82,53 @@ export default function Home() {
       <main className="flex-1 flex flex-col items-center p-6 space-y-12">
         <div className="relative z-10 w-full"><Hero /></div>
 
-        {/* Tactical Shortcuts - Quick Access Roles */}
-        <div className="w-full max-w-6xl space-y-8 relative z-10" id="roles">
+        {/* Tactical Shortcuts - Primary Role Access */}
+        <div className="w-full max-w-6xl space-y-12 relative z-10" id="roles">
           <div className="flex flex-col items-center gap-6">
             <div className="flex items-center gap-2 mb-2">
               <Zap className="w-5 h-5 text-primary" />
-              <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Tactical Role Shortcuts</h2>
+              <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Tactical Launchpad</h2>
             </div>
-            
-            {!user ? (
+
+            <div className="flex flex-col md:flex-row gap-4 w-full justify-center items-center">
               <InteractiveHoverButton 
-                text="Guardian Login" 
-                className="h-14 w-64"
-                onClick={() => window.location.href = "/login"}
+                text="Volunteer Scan" 
+                className="h-20 w-full md:w-80 text-xl font-black uppercase tracking-widest bg-slate-900 text-white rounded-3xl border-b-8 border-slate-950 shadow-2xl"
+                onClick={() => window.location.href = "/volunteer"}
               />
-            ) : (
-              <div className="bg-white border-2 border-primary/20 rounded-full px-6 py-3 flex items-center gap-3 shadow-xl animate-entrance">
-                <ShieldCheck className="w-6 h-6 text-teal-600" />
-                <div className="flex flex-col">
-                  <span className="font-black text-xs uppercase tracking-widest text-slate-900 mb-1">Authenticated</span>
-                  <span className="text-[10px] font-bold text-muted-foreground truncate max-w-[200px]">{user.email || 'Guest ID: ' + user.uid.slice(0, 8)}</span>
+              {!user ? (
+                <InteractiveHoverButton 
+                  text="Guardian Login" 
+                  className="h-20 w-full md:w-80 text-xl font-black uppercase tracking-widest"
+                  onClick={() => window.location.href = "/login"}
+                />
+              ) : (
+                <div className="bg-white border-4 border-primary/20 rounded-3xl px-8 py-4 flex items-center gap-4 shadow-xl animate-entrance h-20 w-full md:w-80">
+                  <ShieldCheck className="w-8 h-8 text-teal-600" />
+                  <div className="flex flex-col">
+                    <span className="font-black text-[10px] uppercase tracking-widest text-slate-400 mb-1">Authenticated</span>
+                    <span className="text-xs font-black text-slate-900 truncate max-w-[150px]">{user.email || 'Tactical Guest'}</span>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pb-12">
             <RoleCard href="/admin/children" icon={<UserCog className="w-6 h-6" />} title="Guardian Panel" description="Registry & ID Management." />
-            <RoleCard href="/volunteer" icon={<CameraIcon className="w-6 h-6" />} title="Volunteer App" description="QR Scanner & Dispatch." />
+            <RoleCard href="/volunteer" icon={<CameraIcon className="w-6 h-6" />} title="Volunteer App" description="QR Scanner & Dispatch Hub." />
             <RoleCard href="/control-room" icon={<LayoutDashboard className="w-6 h-6" />} title="Control Room" description="Live Dashboard & Intel." />
           </div>
         </div>
 
+        {/* SOS Emergency Hub */}
         <div className="w-full max-w-2xl animate-entrance pb-24">
           <Card className="bg-red-50 border-4 border-red-600 shadow-2xl rounded-[2.5rem] overflow-hidden">
             <div className="bg-red-600 text-white p-6 text-center">
-              <h3 className="flex items-center justify-center gap-3 text-3xl font-black uppercase tracking-tighter"><Siren className="w-8 h-8 animate-pulse" /> Emergency Hub</h3>
+              <h3 className="flex items-center justify-center gap-3 text-3xl font-black uppercase tracking-tighter"><Siren className="w-8 h-8 animate-pulse" /> Emergency SOS</h3>
             </div>
             <CardContent className="p-8 space-y-6 text-center">
-              <p className="text-slate-900 font-bold text-lg leading-tight">Are you or someone else in immediate danger? Trigger a silent GPS panic signal to our tactical control room.</p>
+              <p className="text-slate-900 font-bold text-lg leading-tight">Immediate danger? Trigger a silent GPS panic signal to our tactical control room.</p>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button className="w-full h-20 text-2xl font-black uppercase shadow-xl bg-red-600 hover:bg-red-700 rounded-2xl border-b-8 border-red-900"><AlertTriangle className="mr-3 w-8 h-8" /> Trigger Panic SOS</Button>
