@@ -9,7 +9,7 @@ import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button
 import { GlowingEffect } from '@/components/ui/glowing-effect';
 import { Hero } from '@/components/ui/animated-hero';
 import { NavBar } from '@/components/nav-bar';
-import { doc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -63,9 +63,9 @@ export default function Home() {
           notes: 'URGENT: PANIC SIGNAL TRIGGERED FROM MAIN DASHBOARD',
           isSOS: true
         };
-        import('firebase/firestore').then(({ setDoc }) => {
-          setDoc(alertRef, sosData, { merge: true });
-        });
+        
+        setDoc(alertRef, sosData, { merge: true });
+        
         toast({ variant: "destructive", title: "SOS ACTIVE" });
         setIsSOSLoading(false);
       },
@@ -102,8 +102,8 @@ export default function Home() {
                 <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center border-2 border-primary group-hover:bg-primary group-hover:text-white transition-colors">
                   <ScanLine className="w-10 h-10" />
                 </div>
-                <div className="text-center">
-                  <span className="block text-2xl font-black uppercase tracking-widest">SCAN AN ID</span>
+                <div className="text-center px-4">
+                  <span className="block text-3xl font-black uppercase tracking-widest leading-none mb-2">SCAN AN ID</span>
                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 group-hover:text-primary transition-colors">Volunteer Terminal</span>
                 </div>
               </motion.button>

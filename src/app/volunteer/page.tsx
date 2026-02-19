@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -261,9 +262,30 @@ export default function VolunteerApp() {
   }
 
   const handleRescue = async (isSOS: boolean = false) => {
-    if (!user || !currentCoords) return;
-    setIsDispatching(true);
+    if (!user) return;
     
+    setIsDispatching(true);
+    let coords = currentCoords;
+
+    // Tactical GPS Lock attempt if passive coordinates are missing
+    if (!coords) {
+      toast({ title: "Acquiring Tactical GPS...", description: "Locking coordinates for dispatch." });
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { 
+            enableHighAccuracy: true, 
+            timeout: 8000 
+          });
+        });
+        coords = { lat: position.coords.latitude, lng: position.coords.longitude };
+        setCurrentCoords(coords);
+      } catch (err) {
+        toast({ variant: 'destructive', title: "Signal Failure", description: "Could not lock GPS for dispatch. Check permissions." });
+        setIsDispatching(false);
+        return;
+      }
+    }
+
     let photoUrl = null;
     if (statusFile) photoUrl = await uploadToImgBB(statusFile);
 
@@ -272,8 +294,8 @@ export default function VolunteerApp() {
       id: alertId,
       childId: isSOS ? 'EMERGENCY_SOS' : scannedId,
       volunteerId: user.uid,
-      locationLatitude: currentCoords.lat, 
-      locationLongitude: currentCoords.lng,
+      locationLatitude: coords.lat, 
+      locationLongitude: coords.lng,
       scanTime: new Date().toISOString(),
       status: isSOS ? 'SOS' : 'Scanned',
       statusUpdateTime: new Date().toISOString(),

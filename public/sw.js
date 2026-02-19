@@ -1,7 +1,7 @@
 
 /**
  * Guardian Tactical Service Worker
- * Handles background notifications and critical alert delivery.
+ * Handles background notification clicks and basic offline caching.
  */
 
 self.addEventListener('install', (event) => {
@@ -12,45 +12,31 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(clients.claim());
 });
 
-// Listener for system notifications triggered from the foreground when tab is backgrounded
+// Handle notification click events
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  // Focus or open the app window
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      if (clientList.length > 0) {
+        return clientList[0].focus();
+      }
+      return clients.openWindow('/');
+    })
+  );
+});
+
+// Listener for background messages from the main thread
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SHOW_TACTICAL_ALERT') {
     const { title, body, tag } = event.data.payload;
-    
-    event.waitUntil(
-      self.registration.showNotification(title, {
-        body,
-        icon: 'https://picsum.photos/seed/guardian/192/192',
-        tag: tag || 'tactical-alert',
-        vibrate: [200, 100, 200, 100, 200],
-        badge: 'https://picsum.photos/seed/guardian-badge/96/96',
-        data: {
-          url: '/'
-        }
-      })
-    );
+    self.registration.showNotification(title, {
+      body,
+      tag,
+      icon: 'https://picsum.photos/seed/guardian/192/192',
+      badge: 'https://picsum.photos/seed/guardian-badge/96/96',
+      vibrate: [200, 100, 200]
+    });
   }
-});
-
-// Handle notification interaction
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-  
-  const urlToOpen = event.notification.data?.url || '/';
-
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // If a window is already open, focus it
-      for (let i = 0; i < windowClients.length; i++) {
-        const client = windowClients[i];
-        if (client.url === urlToOpen && 'focus' in client) {
-          return client.focus();
-        }
-      }
-      // Otherwise open a new window
-      if (clients.openWindow) {
-        return clients.openWindow(urlToOpen);
-      }
-    })
-  );
 });
