@@ -95,7 +95,7 @@ export default function VolunteerApp() {
   }, [db, user]);
   const { data: pastMissions } = useCollection(missionsRef);
 
-  // CRITICAL: Defer registry query until user is authenticated to avoid permission errors
+  // Defer registry query until user is authenticated
   const childrenRef = useMemoFirebase(() => (db && user) ? collection(db, 'children') : null, [db, user]);
   const { data: allChildren } = useCollection(childrenRef);
 
@@ -432,7 +432,7 @@ export default function VolunteerApp() {
                     </div>
                     <div className="flex-1 space-y-1">
                       <p className="text-[10px] font-black text-primary uppercase tracking-widest">ID: {scannedId}</p>
-                      <h3 className="text-2xl font-black uppercase leading-tight truncate">{isLoadingChild ? 'Syncing...' : (childData?.childName || 'Checking Identity...')}</h3>
+                      <h3 className="text-2xl font-black uppercase leading-tight">{isLoadingChild ? 'Syncing...' : (childData?.childName || 'Checking Identity...')}</h3>
                       {!isLoadingChild && childData && (
                         <div className="flex flex-wrap gap-2 mt-2">
                            <Badge variant="outline" className="text-[9px] border-white/20 text-white">{childData.age} Years Old</Badge>
