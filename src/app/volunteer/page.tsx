@@ -71,7 +71,6 @@ export default function VolunteerApp() {
   const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
   const [isAlarmActive, setIsAlarmActive] = useState(false);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
-  const [lastBroadcastId, setLastBroadcastId] = useState<string | null>(null);
   const alarmIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -104,38 +103,9 @@ export default function VolunteerApp() {
   const { data: latestBroadcasts } = useCollection(broadcastRef);
   const latestBroadcast = latestBroadcasts?.[0];
 
-  // Tactical Broadcast Notification Logic
-  useEffect(() => {
-    if (latestBroadcast && latestBroadcast.id !== lastBroadcastId) {
-      setLastBroadcastId(latestBroadcast.id);
-      toast({
-        title: "COMMAND BROADCAST",
-        description: latestBroadcast.message,
-        className: "bg-primary text-white font-black uppercase",
-      });
-    }
-  }, [latestBroadcast, lastBroadcastId, toast]);
-
   // Active Mission status tracking
   const activeAlertRef = useMemoFirebase(() => (activeAlertId && db) ? doc(db, 'rescueEvents', activeAlertId) : null, [db, activeAlertId]);
   const { data: activeAlertDoc } = useDoc(activeAlertRef);
-
-  useEffect(() => {
-    if (activeAlertDoc?.status === 'Parent Notified') {
-      toast({
-        title: "MISSION UPDATE",
-        description: "Parent has been notified. Maintain current position or escort to nearest hub.",
-        variant: "default",
-      });
-    }
-    if (activeAlertDoc?.status === 'Child Reunited') {
-      toast({
-        title: "MISSION COMPLETE",
-        description: "Subject identified and reunited successfully. Sentinel status updated.",
-        className: "bg-teal-600 text-white font-black",
-      });
-    }
-  }, [activeAlertDoc?.status, toast]);
 
   const guardianRank = useMemo(() => {
     const count = pastMissions?.length || 0;

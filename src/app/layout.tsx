@@ -3,6 +3,7 @@ import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { FirebaseClientProvider } from '@/firebase/client-provider';
+import { TacticalNotificationListener } from '@/components/tactical-notification-listener';
 
 export const metadata: Metadata = {
   title: 'CrowdCare Guardian',
@@ -44,6 +45,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased bg-background">
         <FirebaseClientProvider>
+          <TacticalNotificationListener />
           {children}
           <Toaster />
         </FirebaseClientProvider>
