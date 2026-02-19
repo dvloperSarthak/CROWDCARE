@@ -188,7 +188,6 @@ export default function VolunteerApp() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      // Use window.Image to avoid conflict with Next.js Image component
       const img = new window.Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
@@ -398,7 +397,7 @@ export default function VolunteerApp() {
                   placeholder="Describe clothing, hair, age, etc..." 
                   className="min-h-[80px]"
                   value={manualDescription === 'describe' ? '' : manualDescription}
-                  onChange={(e) => manualDescription === 'describe' ? setManualDescription(e.target.value) : setManualDescription(e.target.value)}
+                  onChange={(e) => setManualDescription(e.target.value)}
                 />
                 <Button className="w-full h-10 font-black uppercase text-[10px]" onClick={runAiMatcher} disabled={isMatching}>
                   {isMatching ? <Loader2 className="animate-spin" /> : "Run AI Search"}
@@ -426,7 +425,7 @@ export default function VolunteerApp() {
 
             {scannedId && (
               <div className="animate-entrance space-y-4">
-                <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-2xl space-y-4 border-b-8 border-primary relative overflow-hidden">
+                <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-2xl space-y-6 border-b-8 border-primary relative overflow-hidden">
                   <div className="flex gap-4 items-center">
                     <div className="w-20 h-20 rounded-2xl border-2 border-primary bg-slate-800 relative overflow-hidden flex-shrink-0">
                       {isLoadingChild ? <Loader2 className="w-6 h-6 animate-spin" /> : childData?.photoUrl ? <Image src={childData.photoUrl} alt="Target" fill className="object-cover" /> : <UserCircle className="w-full h-full text-slate-600" />}
@@ -442,11 +441,37 @@ export default function VolunteerApp() {
                       )}
                     </div>
                   </div>
-                  
-                  {!isLoadingChild && childData?.physicalDescription && (
-                    <div className="bg-slate-800/50 p-3 rounded-xl text-[10px] text-slate-400 italic">
-                       <span className="font-black uppercase text-primary block not-italic mb-1">Verified Profile Intel:</span>
-                       {childData.physicalDescription}
+
+                  {!isLoadingChild && childData && (
+                    <div className="grid gap-4 pt-4 border-t border-white/10">
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black uppercase text-primary tracking-widest">Primary Guardian Contact</p>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-black uppercase">{childData.parentName}</p>
+                            <p className="text-xs font-bold text-slate-400">{childData.parentMobileNumber}</p>
+                          </div>
+                          <Button size="sm" className="h-10 px-4 font-black uppercase text-[10px] bg-teal-600 hover:bg-teal-700 shadow-lg" asChild>
+                            <a href={`tel:${childData.parentMobileNumber}`}>
+                              <PhoneCall className="w-4 h-4 mr-2" /> Call Parent
+                            </a>
+                          </Button>
+                        </div>
+                      </div>
+
+                      {childData.physicalDescription && (
+                        <div className="bg-slate-800/50 p-3 rounded-xl text-[10px] text-slate-400 italic">
+                          <span className="font-black uppercase text-primary block not-italic mb-1">Verified Profile Intel:</span>
+                          {childData.physicalDescription}
+                        </div>
+                      )}
+                      
+                      {childData.medicalRequirements !== 'None' && (
+                        <div className="bg-red-950/30 border border-red-500/30 p-3 rounded-xl text-[10px] text-red-200">
+                          <span className="font-black uppercase text-red-500 block mb-1">Medical Protocol:</span>
+                          {childData.medicalRequirements}
+                        </div>
+                      )}
                     </div>
                   )}
 
