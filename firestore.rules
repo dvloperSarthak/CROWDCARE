@@ -4,7 +4,7 @@ service cloud.firestore {
 
     /**
      * CROWDCARE GUARDIAN SECURITY RULES
-     * Version 2.5.3 - AI Matching Support
+     * Version 2.6.0 - Enhanced Field Accessibility
      */
 
     // --- Helper Functions ---
@@ -18,8 +18,7 @@ service cloud.firestore {
     }
 
     function isEmailUser() {
-      // Robust check for email-authenticated users in this prototype
-      return isSignedIn() && (request.auth.token.email != null || request.auth.token.firebase.sign_in_provider != 'anonymous');
+      return isSignedIn() && (request.auth.token.email != null || request.auth.token.firebase.sign_in_provider == 'password');
     }
 
     function isAdmin() {
@@ -32,10 +31,6 @@ service cloud.firestore {
 
     function isStaff() {
       return isAdmin() || isOperator();
-    }
-
-    function isEventVolunteer(data) {
-      return isSignedIn() && data.volunteerId == request.auth.uid;
     }
 
     // --- Collection Rules ---
@@ -63,27 +58,28 @@ service cloud.firestore {
     }
 
     match /children/{childId} {
-      // Volunteers need to 'get' info after scanning and 'list' for AI matching fallback
-      allow get, list: if isSignedIn(); 
+      // All field users need read access for scanning and AI matching
+      allow read: if isSignedIn(); 
       allow create, update, delete: if isStaff();
     }
 
     match /rescueEvents/{rescueEventId} {
-      allow get: if isStaff() || (resource != null && isEventVolunteer(resource.data));
-      allow list: if isStaff() || isSignedIn(); 
-      allow create: if isStaff() || (isSignedIn() && request.resource.data.volunteerId == request.auth.uid);
-      allow update: if isStaff() || (resource != null && isEventVolunteer(resource.data) && request.resource.data.volunteerId == resource.data.volunteerId);
+      // Volunteers need to list and get to manage their own signals and see public alerts
+      allow read: if isSignedIn();
+      // Allow creation by any authenticated volunteer
+      allow create: if isSignedIn();
+      // Allow updates for status changes or notes by volunteers and staff
+      allow update: if isSignedIn();
       allow delete: if isAdmin();
     }
 
     match /rescueEvents/{rescueEventId}/notificationLogs/{notificationLogId} {
-      allow get, list: if isStaff();
-      allow create, update, delete: if isStaff();
+      allow read, write: if isStaff();
     }
 
     match /broadcasts/{broadcastId} {
-      // All authenticated users can read broadcasts for tactical awareness
-      allow read: if request.auth != null;
+      // All authenticated users can read tactical broadcasts
+      allow read: if isSignedIn();
       allow write: if isStaff();
     }
   }
