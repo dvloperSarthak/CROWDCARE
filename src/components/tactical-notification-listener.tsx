@@ -32,23 +32,24 @@ export function TacticalNotificationListener() {
   }, [db, user]);
   const { data: alerts } = useCollection(alertQuery);
 
-  const sendSystemNotification = (title: string, body: string, tag: string) => {
+  const sendSystemNotification = async (title: string, body: string, tag: string) => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     
     if (Notification.permission === 'granted') {
-      // If document is backgrounded or site is "closed" (active in SW), send to Service Worker
-      if (document.visibilityState === 'hidden' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          type: 'SHOW_TACTICAL_ALERT',
-          payload: { title, body, tag }
-        });
-      } else {
-        // Foreground system notification
-        new Notification(title, { 
-          body, 
-          icon: 'https://picsum.photos/seed/guardian/192/192',
-          tag 
-        });
+      // Use ServiceWorkerRegistration to show notifications to avoid "Illegal constructor" error
+      if ('serviceWorker' in navigator) {
+        try {
+          const registration = await navigator.serviceWorker.ready;
+          registration.showNotification(title, {
+            body,
+            icon: 'https://picsum.photos/seed/guardian/192/192',
+            tag,
+            vibrate: [200, 100, 200],
+          });
+        } catch (err) {
+          // Fallback if SW fails
+          console.warn('Notification via Service Worker failed', err);
+        }
       }
     }
   };

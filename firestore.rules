@@ -2,8 +2,6 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Globally authorized access for authenticated tactical users.
-    // Explicitly allows all authenticated users to list, read, and write tactical data.
     match /{document=**} {
       allow read, write: if request.auth != null;
     }
