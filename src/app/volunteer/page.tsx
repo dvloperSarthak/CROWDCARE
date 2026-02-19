@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -62,7 +63,6 @@ export default function VolunteerApp() {
   const [currentCoords, setCurrentCoords] = useState<{lat: number, lng: number} | null>(null);
   const [gpsAccuracy, setGpsAccuracy] = useState<'low' | 'medium' | 'high' | 'none'>('none');
   const [activeAlertId, setActiveAlertId] = useState<string | null>(null);
-  const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [statusFile, setStatusFile] = useState<File | null>(null);
   const [statusPreview, setStatusPreview] = useState<string | null>(null);
   const [manualDescription, setManualDescription] = useState('');
@@ -81,16 +81,24 @@ export default function VolunteerApp() {
   const auth = useAuth();
   const { user, isUserLoading } = useUser();
 
+  // Auto-login for public access
+  useEffect(() => {
+    if (!isUserLoading && !user && auth) {
+      initiateAnonymousSignIn(auth);
+    }
+  }, [user, isUserLoading, auth]);
+
   const missionsRef = useMemoFirebase(() => {
     if (!user || !db) return null;
     return query(collection(db, 'rescueEvents'), where('volunteerId', '==', user.uid));
   }, [db, user]);
   const { data: pastMissions } = useCollection(missionsRef);
 
-  const childrenRef = useMemoFirebase(() => db ? collection(db, 'children') : null, [db]);
+  // CRITICAL: Defer registry query until user is authenticated to avoid permission errors
+  const childrenRef = useMemoFirebase(() => (db && user) ? collection(db, 'children') : null, [db, user]);
   const { data: allChildren } = useCollection(childrenRef);
 
-  const broadcastRef = useMemoFirebase(() => db ? query(collection(db, 'broadcasts'), orderBy('timestamp', 'desc'), limit(1)) : null, [db]);
+  const broadcastRef = useMemoFirebase(() => (db && user) ? query(collection(db, 'broadcasts'), orderBy('timestamp', 'desc'), limit(1)) : null, [db, user]);
   const { data: latestBroadcasts } = useCollection(broadcastRef);
   const latestBroadcast = latestBroadcasts?.[0];
 
@@ -150,7 +158,6 @@ export default function VolunteerApp() {
     setIsScanning(true);
     setScannedId('');
     
-    // Stop previous tracks
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
     }
@@ -266,6 +273,16 @@ export default function VolunteerApp() {
     }
     setIsMatching(false);
   };
+
+  if (isUserLoading || (!user && auth)) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
+        <Loader2 className="w-12 h-12 animate-spin text-primary mb-4" />
+        <h2 className="text-xl font-black uppercase">Establishing Tactical Handshake</h2>
+        <p className="text-muted-foreground text-sm">Provisioning guest volunteer credentials...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-20">
