@@ -3,50 +3,17 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * CROWDCARE GUARDIAN TACTICAL RULES v6.0
+     * CROWDCARE GUARDIAN TACTICAL RULES v8.0
      * Explicitly authorizes all authenticated users (Staff, Volunteers, and Guests)
-     * for full tactical operations. This ensures that field teams can access
-     * real-time safety data and list mission logs without interruption.
+     * for full tactical operations. This is a flattened, high-availability rule set
+     * designed to ensure zero-friction data synchronization in emergency scenarios.
      */
 
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // Explicitly allow list, get, create, and update for all tactical collections
-    match /children/{childId} {
-      allow list, get, create, update: if isSignedIn();
-      allow delete: if isSignedIn(); // Administrative fallback
-    }
-
-    match /rescueEvents/{eventId} {
-      allow list, get, create, update: if isSignedIn();
-      allow delete: if isSignedIn();
-      
-      match /{allSubcollections=**} {
-        allow list, get, create, update, delete: if isSignedIn();
-      }
-    }
-
-    match /broadcasts/{broadcastId} {
-      allow list, get, create, update: if isSignedIn();
-    }
-
-    match /users/{userId} {
-      allow list, get, create, update: if isSignedIn();
-    }
-
-    match /roles_admin/{userId} {
-      allow list, get, create, update: if isSignedIn();
-    }
-
-    match /roles_operator/{userId} {
-      allow list, get, create, update: if isSignedIn();
-    }
-
-    // Global Fallback to catch any nested or recursive queries
     match /{document=**} {
-      allow read, write: if isSignedIn();
+      // Allows any signed-in user to read or write to any tactical node.
+      // This supports the decentralized nature of anonymous volunteer scanning
+      // and public status tracking.
+      allow read, write: if request.auth != null;
     }
   }
 }

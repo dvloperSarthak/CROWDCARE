@@ -426,16 +426,16 @@ export default function VolunteerApp() {
               <div className="animate-entrance space-y-4">
                 <div className="bg-slate-900 rounded-2xl p-6 text-white shadow-2xl space-y-6 border-b-8 border-primary relative overflow-hidden">
                   <div className="flex gap-4 items-center">
-                    <div className="w-20 h-20 rounded-2xl border-2 border-primary bg-slate-800 relative overflow-hidden flex-shrink-0">
+                    <div className="w-24 h-24 rounded-2xl border-4 border-primary bg-slate-800 relative overflow-hidden flex-shrink-0">
                       {isLoadingChild ? <Loader2 className="w-6 h-6 animate-spin" /> : childData?.photoUrl ? <Image src={childData.photoUrl} alt="Target" fill className="object-cover" /> : <UserCircle className="w-full h-full text-slate-600" />}
                     </div>
                     <div className="flex-1 space-y-1">
                       <p className="text-[10px] font-black text-primary uppercase tracking-widest">Guardian ID: {scannedId}</p>
-                      <h3 className="text-2xl font-black uppercase tracking-tighter">{isLoadingChild ? 'Syncing...' : (childData?.childName || 'Identity Confirmed')}</h3>
+                      <h3 className="text-3xl font-black uppercase tracking-tighter leading-none">{isLoadingChild ? 'Syncing...' : (childData?.childName || 'Identity Confirmed')}</h3>
                       {!isLoadingChild && childData && (
                         <div className="flex flex-wrap gap-2 mt-2">
-                           <Badge variant="outline" className="text-[9px] border-white/20 text-white">{childData.age} Years Old</Badge>
-                           {childData.medicalRequirements !== 'None' && <Badge variant="destructive" className="text-[9px] bg-red-600 animate-pulse border-none uppercase"><Activity className="w-2 h-2 mr-1" /> Medical Alert</Badge>}
+                           <Badge variant="outline" className="text-[9px] border-white/20 text-white font-black">{childData.age} Years Old</Badge>
+                           {childData.medicalRequirements && childData.medicalRequirements !== 'None' && <Badge variant="destructive" className="text-[9px] bg-red-600 animate-pulse border-none font-black uppercase"><Activity className="w-3 h-3 mr-1" /> Medical Alert</Badge>}
                         </div>
                       )}
                     </div>
@@ -443,37 +443,42 @@ export default function VolunteerApp() {
 
                   {!isLoadingChild && childData && (
                     <div className="grid gap-4 pt-4 border-t border-white/10">
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         <p className="text-[10px] font-black text-primary uppercase tracking-widest">Guardian Contact Info</p>
                         <div className="flex flex-col gap-3 bg-white/5 p-4 rounded-xl border border-white/10">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-black uppercase">{childData.parentName}</p>
-                              <p className="text-xs font-bold text-slate-400">{childData.parentMobileNumber}</p>
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex-1">
+                              <p className="text-sm font-black uppercase text-white">{childData.parentName}</p>
+                              <p className="text-lg font-black text-primary tracking-tighter">{childData.parentMobileNumber}</p>
                             </div>
-                            <Button size="sm" className="h-12 px-6 font-black uppercase text-[10px] bg-teal-600 hover:bg-teal-700 shadow-xl shrink-0" asChild>
+                            <Button size="lg" className="h-14 px-8 font-black uppercase text-xs bg-teal-600 hover:bg-teal-700 shadow-[0_0_20px_rgba(51,255,209,0.3)] shrink-0" asChild>
                               <a href={`tel:${childData.parentMobileNumber}`}>
-                                <PhoneCall className="w-4 h-4 mr-2" /> Call Parent
+                                <PhoneCall className="w-5 h-5 mr-2" /> Call Parent
                               </a>
                             </Button>
                           </div>
                           {childData.emergencyContactNumber && (
-                             <div className="pt-2 border-t border-white/5">
-                                <p className="text-[8px] font-black uppercase text-slate-500">Emergency Contact</p>
-                                <p className="text-xs font-bold text-slate-300">{childData.emergencyContactNumber}</p>
+                             <div className="pt-2 border-t border-white/5 flex justify-between items-center">
+                                <div>
+                                  <p className="text-[8px] font-black uppercase text-slate-500">Alt Emergency</p>
+                                  <p className="text-xs font-bold text-slate-300">{childData.emergencyContactNumber}</p>
+                                </div>
+                                <Button variant="ghost" size="sm" className="h-8 text-[9px] font-black uppercase text-slate-400" asChild>
+                                  <a href={`tel:${childData.emergencyContactNumber}`}>Call Alt</a>
+                                </Button>
                              </div>
                           )}
                         </div>
                       </div>
 
-                      <div className="bg-slate-800/50 p-3 rounded-xl text-[10px] text-slate-400">
-                        <span className="font-black uppercase text-primary block mb-1">Physical Profile:</span>
+                      <div className="bg-slate-800/50 p-4 rounded-xl text-xs text-slate-300 border border-white/5">
+                        <span className="font-black uppercase text-primary text-[10px] block mb-1">Physical Profile:</span>
                         {childData.physicalDescription || "No forensic physical profile available."}
                       </div>
                       
-                      {childData.medicalRequirements !== 'None' && (
-                        <div className="bg-red-950/30 border border-red-500/30 p-3 rounded-xl text-[10px] text-red-200">
-                          <span className="font-black uppercase text-red-500 block mb-1">Medical Protocol:</span>
+                      {childData.medicalRequirements && childData.medicalRequirements !== 'None' && (
+                        <div className="bg-red-950/30 border border-red-500/30 p-4 rounded-xl text-xs text-red-200">
+                          <span className="font-black uppercase text-red-500 text-[10px] block mb-1">Medical Protocol:</span>
                           {childData.medicalRequirements}
                         </div>
                       )}
@@ -495,10 +500,10 @@ export default function VolunteerApp() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <Button onClick={toggleCrowdAlarm} variant={isAlarmActive ? "destructive" : "outline"} className={cn("h-16 font-black uppercase text-[10px]", isAlarmActive && "animate-pulse")}>
+                  <Button onClick={toggleCrowdAlarm} variant={isAlarmActive ? "destructive" : "outline"} className={cn("h-16 font-black uppercase text-[10px]", isAlarmActive && "animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]")}>
                      <Volume2 className="w-4 h-4 mr-2" /> {isAlarmActive ? "Stop Alarm" : "Crowd Signal"}
                   </Button>
-                  <Button onClick={() => handleRescue(false)} disabled={isDispatching} className="h-16 font-black uppercase text-[10px] bg-primary">
+                  <Button onClick={() => handleRescue(false)} disabled={isDispatching} className="h-16 font-black uppercase text-[10px] bg-primary shadow-[0_0_20px_rgba(255,119,51,0.3)]">
                      {isDispatching ? <Loader2 className="animate-spin" /> : <><AlertTriangle className="w-4 h-4 mr-2" /> Dispatch Alert</>}
                   </Button>
                 </div>
