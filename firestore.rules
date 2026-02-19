@@ -3,23 +3,45 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * CROWDCARE GUARDIAN TACTICAL RULES
-     * Prototype v3.0 - Global Access for Signed-in Personnel
-     * This configuration authorizes all authenticated users (including Guests) 
-     * for full read/write operations on tactical collections.
+     * CROWDCARE GUARDIAN TACTICAL RULES v3.1
+     * Explicitly authorizes all authenticated users (including Guests) 
+     * for full tactical operations: reading registry, listing alerts, and receiving broadcasts.
      */
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Global Match: Ensures all signed-in users can participate in rescue ops
-    match /{document=**} {
+    // Explicit permissions for tactical collections to prevent 'list' errors
+    match /children/{childId} {
       allow read, write: if isSignedIn();
     }
 
-    // Specific match for nested subcollections if any
-    match /rescueEvents/{rescueEventId}/notificationLogs/{notificationLogId} {
+    match /rescueEvents/{eventId} {
+      allow read, write: if isSignedIn();
+      match /notificationLogs/{logId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    match /broadcasts/{broadcastId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /users/{userId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /roles_admin/{userId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /roles_operator/{userId} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Global Fallback for recursive operations
+    match /{document=**} {
       allow read, write: if isSignedIn();
     }
   }
