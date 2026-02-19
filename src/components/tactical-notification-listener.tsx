@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useRef } from 'react';
@@ -9,8 +10,6 @@ import { useToast } from '@/hooks/use-toast';
  * TacticalNotificationListener
  * A background listener that triggers browser system notifications for 
  * new broadcasts and critical mission alerts.
- * 
- * Works when the app is in foreground and simulates background alerts via sw.js.
  */
 export function TacticalNotificationListener() {
   const { toast } = useToast();
@@ -37,8 +36,8 @@ export function TacticalNotificationListener() {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     
     if (Notification.permission === 'granted') {
-      // If document is backgrounded, send to Service Worker for background handling
-      if (document.visibilityState === 'hidden' && navigator.serviceWorker.controller) {
+      // If document is backgrounded or site is "closed" (active in SW), send to Service Worker
+      if (document.visibilityState === 'hidden' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({
           type: 'SHOW_TACTICAL_ALERT',
           payload: { title, body, tag }
@@ -59,7 +58,6 @@ export function TacticalNotificationListener() {
     if (!broadcasts || broadcasts.length === 0) return;
     const latest = broadcasts[0];
 
-    // Initialize ref on first run to avoid notifying about historical data
     if (lastBroadcastIdRef.current === null) {
       lastBroadcastIdRef.current = latest.id;
       return;
@@ -94,7 +92,6 @@ export function TacticalNotificationListener() {
     if (latest.id !== lastAlertIdRef.current) {
       lastAlertIdRef.current = latest.id;
       
-      // Notify about high-priority SOS or new missions
       if (latest.status === 'SOS' || latest.status === 'Scanned' || latest.status === 'Child Reunited') {
         const title = latest.status === 'SOS' ? "URGENT SOS SIGNAL" : 
                       latest.status === 'Child Reunited' ? "MISSION RESOLVED" : "NEW MISSION DISPATCH";
