@@ -70,6 +70,7 @@ export default function VolunteerApp() {
   const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
   const [isAlarmActive, setIsAlarmActive] = useState(false);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+  const [lastBroadcastId, setLastBroadcastId] = useState<string | null>(null);
   const alarmIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -101,6 +102,40 @@ export default function VolunteerApp() {
   const broadcastRef = useMemoFirebase(() => (db && user) ? query(collection(db, 'broadcasts'), orderBy('timestamp', 'desc'), limit(1)) : null, [db, user]);
   const { data: latestBroadcasts } = useCollection(broadcastRef);
   const latestBroadcast = latestBroadcasts?.[0];
+
+  // Tactical Broadcast Notification Logic
+  useEffect(() => {
+    if (latestBroadcast && latestBroadcast.id !== lastBroadcastId) {
+      setLastBroadcastId(latestBroadcast.id);
+      toast({
+        title: "COMMAND BROADCAST",
+        description: latestBroadcast.message,
+        className: "bg-primary text-white font-black uppercase",
+      });
+    }
+  }, [latestBroadcast, lastBroadcastId, toast]);
+
+  // Active Mission status tracking
+  const activeAlertRef = useMemoFirebase(() => (activeAlertId && db) ? doc(db, 'rescueEvents', activeAlertId) : null, [db, activeAlertId]);
+  const { data: activeAlertDoc } = useDoc(activeAlertRef);
+
+  useEffect(() => {
+    if (activeAlertDoc?.status === 'Parent Notified') {
+      toast({
+        title: "STATUS UPDATE",
+        description: "Guardian notified. Proceed to designated hub.",
+        variant: "default",
+      });
+    }
+    if (activeAlertDoc?.status === 'Child Reunited') {
+      toast({
+        title: "MISSION COMPLETE",
+        description: "Subject identified and reunited successfully.",
+        className: "bg-teal-600 text-white font-black",
+      });
+      // Optionally reset UI after some time or keep it in success state
+    }
+  }, [activeAlertDoc?.status, toast]);
 
   const guardianRank = useMemo(() => {
     const count = pastMissions?.length || 0;
@@ -284,6 +319,7 @@ export default function VolunteerApp() {
     setActiveAlertId(alertId);
     setIsDispatching(false);
     setIsSent(true);
+    toast({ title: "Dispatch Complete", description: "Signal transmitted to Control Room." });
   };
 
   const runAiMatcher = async () => {
@@ -518,10 +554,14 @@ export default function VolunteerApp() {
               </div>
               <div className="space-y-3">
                 <h2 className="text-3xl font-black uppercase tracking-tighter">Mission Active</h2>
+                <div className="bg-slate-50 p-4 rounded-xl border">
+                  <p className="text-[10px] font-black text-muted-foreground uppercase">Current Status</p>
+                  <p className="text-lg font-black text-primary">{activeAlertDoc?.status || 'Processing'}</p>
+                </div>
                 <Button onClick={toggleCrowdAlarm} variant={isAlarmActive ? "destructive" : "outline"} className={cn("w-full h-14 rounded-2xl font-black uppercase", isAlarmActive && "animate-pulse")}>
                    <Volume2 className="w-5 h-5 mr-3" /> {isAlarmActive ? "Disable Signal" : "Active Crowd Signal"}
                 </Button>
-                <Button onClick={() => { setIsSent(false); setScannedId(''); setManualDescription(''); setStatusPreview(null); setStatusFile(null); }} variant="ghost" className="text-muted-foreground font-black uppercase text-[10px]">Close & Reset</Button>
+                <Button onClick={() => { setIsSent(false); setScannedId(''); setManualDescription(''); setStatusPreview(null); setStatusFile(null); setActiveAlertId(null); }} variant="ghost" className="text-muted-foreground font-black uppercase text-[10px]">Close & Reset</Button>
               </div>
             </Card>
           </div>
