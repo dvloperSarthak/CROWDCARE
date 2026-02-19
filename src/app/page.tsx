@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -28,7 +29,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -63,7 +63,6 @@ export default function Home() {
   const isLoadingRoles = (loadingAdmin || loadingOperator) && !isEmailUser;
 
   const startScanning = async (mode: 'user' | 'environment' = facingMode) => {
-    setIsScanningQR(true);
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
     }
@@ -81,6 +80,20 @@ export default function Home() {
     }
   };
 
+  const handleOpenScanner = () => {
+    setIsScanningQR(true);
+    // Camera starts via useEffect when dialog opens
+  };
+
+  useEffect(() => {
+    if (isScanningQR) {
+      startScanning(facingMode);
+    } else {
+      stopScanning();
+    }
+    return () => stopScanning();
+  }, [isScanningQR]);
+
   const switchCamera = () => {
     const newMode = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(newMode);
@@ -93,7 +106,6 @@ export default function Home() {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
       videoRef.current.srcObject = null;
     }
-    setIsScanningQR(false);
   };
 
   const handleGalleryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -102,7 +114,6 @@ export default function Home() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      // Use window.Image to avoid conflict with Next.js Image component
       const img = new window.Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
@@ -115,7 +126,7 @@ export default function Home() {
           const code = jsQR(imageData.data, imageData.width, imageData.height);
           if (code) {
             setStatusId(code.data);
-            stopScanning();
+            setIsScanningQR(false);
             window.location.href = `/status/${code.data}`;
           } else {
             toast({ variant: 'destructive', title: 'No QR Found', description: 'Could not detect a Guardian ID in this image.' });
@@ -141,7 +152,7 @@ export default function Home() {
           const code = jsQR(imageData.data, imageData.width, imageData.height);
           if (code) {
             setStatusId(code.data);
-            stopScanning();
+            setIsScanningQR(false);
             window.location.href = `/status/${code.data}`;
             return;
           }
@@ -151,15 +162,18 @@ export default function Home() {
     requestRef.current = requestAnimationFrame(tick);
   };
 
-  useEffect(() => {
-    return () => {
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
-    };
-  }, []);
-
   const handleGuestAccess = () => {
     if (auth && !user) {
       initiateAnonymousSignIn(auth);
+    }
+  };
+
+  const handleTrackStatus = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (statusId) {
+      window.location.href = `/status/${statusId}`;
+    } else {
+      toast({ title: "ID Required", description: "Please enter a Guardian ID to track." });
     }
   };
 
@@ -222,19 +236,18 @@ export default function Home() {
              <CardContent className="p-8 flex flex-col md:flex-row gap-4 items-center">
                 <div className="flex-1 space-y-2">
                    <p className="text-sm font-bold text-slate-600">Enter your child's Guardian ID or scan their QR code to track their safety status in real-time.</p>
-                   <div className="flex gap-2">
+                   <form onSubmit={handleTrackStatus} className="flex gap-2">
                       <Input 
                         placeholder="e.g., C1234" 
                         className="h-12 text-lg font-black uppercase tracking-tighter"
                         value={statusId}
                         onChange={(e) => setStatusId(e.target.value)}
                       />
-                      <Dialog open={isScanningQR} onOpenChange={(open) => !open && stopScanning()}>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" className="h-12 w-12 p-0 border-2 border-slate-900 shrink-0" onClick={() => startScanning()}>
-                            <QrCode className="w-6 h-6" />
-                          </Button>
-                        </DialogTrigger>
+                      <Button type="button" variant="outline" className="h-12 w-12 p-0 border-2 border-slate-900 shrink-0" onClick={handleOpenScanner}>
+                        <QrCode className="w-6 h-6" />
+                      </Button>
+                      
+                      <Dialog open={isScanningQR} onOpenChange={setIsScanningQR}>
                         <DialogContent className="sm:max-w-md bg-slate-950 border-4 border-primary text-white p-0 overflow-hidden">
                           <DialogHeader className="p-4 border-b border-white/10">
                             <DialogTitle className="text-center font-black uppercase text-sm tracking-widest">Scanning Guardian QR</DialogTitle>
@@ -248,6 +261,7 @@ export default function Home() {
                             </div>
                             <div className="absolute bottom-4 right-4 z-20 flex gap-2">
                               <Button 
+                                type="button"
                                 variant="secondary" 
                                 size="icon" 
                                 className="rounded-full h-12 w-12 opacity-80 hover:opacity-100"
@@ -256,6 +270,7 @@ export default function Home() {
                                 <ImageIcon className="h-6 w-6" />
                               </Button>
                               <Button 
+                                type="button"
                                 variant="secondary" 
                                 size="icon" 
                                 className="rounded-full h-12 w-12 opacity-80 hover:opacity-100"
@@ -277,12 +292,13 @@ export default function Home() {
                           </div>
                         </DialogContent>
                       </Dialog>
+
                       <InteractiveHoverButton 
+                        type="submit"
                         text="Track Status" 
                         className="h-12 w-48 shrink-0"
-                        onClick={() => statusId && (window.location.href = `/status/${statusId}`)}
                       />
-                   </div>
+                   </form>
                 </div>
                 <div className="hidden md:block w-[1px] h-16 bg-slate-200 mx-4" />
                 <div className="text-center md:text-left space-y-1">
