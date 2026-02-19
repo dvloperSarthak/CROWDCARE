@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -91,12 +90,11 @@ export default function Home() {
       stopScanning();
     }
     return () => stopScanning();
-  }, [isScanningQR]);
+  }, [isScanningQR, facingMode]);
 
   const switchCamera = () => {
     const newMode = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(newMode);
-    startScanning(newMode);
   };
 
   const stopScanning = () => {

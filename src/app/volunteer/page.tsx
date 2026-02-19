@@ -430,9 +430,9 @@ export default function VolunteerApp() {
                     <div className="w-20 h-20 rounded-2xl border-2 border-primary bg-slate-800 relative overflow-hidden flex-shrink-0">
                       {isLoadingChild ? <Loader2 className="w-6 h-6 animate-spin" /> : childData?.photoUrl ? <Image src={childData.photoUrl} alt="Target" fill className="object-cover" /> : <UserCircle className="w-full h-full text-slate-600" />}
                     </div>
-                    <div className="flex-1 space-y-1 overflow-hidden">
-                      <p className="text-[10px] font-black text-primary uppercase tracking-widest">ID: {scannedId}</p>
-                      <h3 className="text-2xl font-black uppercase leading-tight truncate w-full">{isLoadingChild ? 'Syncing...' : (childData?.childName || 'Identity Confirmed')}</h3>
+                    <div className="flex-1 space-y-1">
+                      <p className="text-[10px] font-black text-primary uppercase tracking-widest">Guardian ID: {scannedId}</p>
+                      <h3 className="text-2xl font-black uppercase leading-tight">{isLoadingChild ? 'Syncing...' : (childData?.childName || 'Identity Confirmed')}</h3>
                       {!isLoadingChild && childData && (
                         <div className="flex flex-wrap gap-2 mt-2">
                            <Badge variant="outline" className="text-[9px] border-white/20 text-white">{childData.age} Years Old</Badge>
@@ -445,10 +445,10 @@ export default function VolunteerApp() {
                   {!isLoadingChild && childData && (
                     <div className="grid gap-4 pt-4 border-t border-white/10">
                       <div className="space-y-1">
-                        <p className="text-[10px] font-black text-primary uppercase tracking-widest">Primary Guardian Contact</p>
+                        <p className="text-[10px] font-black text-primary uppercase tracking-widest">Guardian Contact Info</p>
                         <div className="flex items-center justify-between gap-4 bg-white/5 p-3 rounded-xl border border-white/10">
-                          <div className="overflow-hidden">
-                            <p className="text-sm font-black uppercase truncate">{childData.parentName}</p>
+                          <div>
+                            <p className="text-sm font-black uppercase">{childData.parentName}</p>
                             <p className="text-xs font-bold text-slate-400">{childData.parentMobileNumber}</p>
                           </div>
                           <Button size="sm" className="h-12 px-6 font-black uppercase text-[10px] bg-teal-600 hover:bg-teal-700 shadow-xl shrink-0" asChild>
@@ -459,12 +459,10 @@ export default function VolunteerApp() {
                         </div>
                       </div>
 
-                      {childData.physicalDescription && (
-                        <div className="bg-slate-800/50 p-3 rounded-xl text-[10px] text-slate-400 italic">
-                          <span className="font-black uppercase text-primary block not-italic mb-1">Verified Profile Intel:</span>
-                          {childData.physicalDescription}
-                        </div>
-                      )}
+                      <div className="bg-slate-800/50 p-3 rounded-xl text-[10px] text-slate-400">
+                        <span className="font-black uppercase text-primary block mb-1">Physical Profile:</span>
+                        {childData.physicalDescription || "No forensic physical profile available."}
+                      </div>
                       
                       {childData.medicalRequirements !== 'None' && (
                         <div className="bg-red-950/30 border border-red-500/30 p-3 rounded-xl text-[10px] text-red-200">
