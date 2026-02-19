@@ -4,7 +4,7 @@ service cloud.firestore {
 
     /**
      * CROWDCARE GUARDIAN SECURITY RULES
-     * Version 2.6.0 - Enhanced Field Accessibility
+     * Version 2.8.0 - Resolved List/Get Permission Conflicts
      */
 
     // --- Helper Functions ---
@@ -58,14 +58,14 @@ service cloud.firestore {
     }
 
     match /children/{childId} {
-      // All field users need read access for scanning and AI matching
-      allow read: if isSignedIn(); 
+      // Explicitly allow list and get for scanning and AI search
+      allow list, get: if isSignedIn();
       allow create, update, delete: if isStaff();
     }
 
     match /rescueEvents/{rescueEventId} {
-      // Volunteers need to list and get to manage their own signals and see public alerts
-      allow read: if isSignedIn();
+      // Explicitly allow list and get for volunteers and command center
+      allow list, get: if isSignedIn();
       // Allow creation by any authenticated volunteer
       allow create: if isSignedIn();
       // Allow updates for status changes or notes by volunteers and staff
@@ -78,8 +78,8 @@ service cloud.firestore {
     }
 
     match /broadcasts/{broadcastId} {
-      // All authenticated users can read tactical broadcasts
-      allow read: if isSignedIn();
+      // Explicitly allow list and get for tactical updates
+      allow list, get: if isSignedIn();
       allow write: if isStaff();
     }
   }
