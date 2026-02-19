@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -110,6 +109,9 @@ export default function Home() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (!result) return;
+
       // Explicitly use window.Image to avoid conflict with Next.js Image component
       const img = new window.Image();
       img.onload = () => {
@@ -125,11 +127,11 @@ export default function Home() {
             setIsScanningQR(false);
             window.location.href = `/status/${code.data}`;
           } else {
-            toast({ variant: 'destructive', title: 'No QR Found', description: 'Could not detect a Guardian ID in this image.' });
+            toast({ variant: 'destructive', title: 'No QR Found', description: 'Could not detect a tactical ID in this image.' });
           }
         }
       };
-      img.src = event.target?.result as string;
+      img.src = result;
     };
     reader.readAsDataURL(file);
   };
@@ -221,7 +223,7 @@ export default function Home() {
              </div>
              <CardContent className="p-8 flex flex-col md:flex-row gap-6 items-center">
                 <div className="flex-1 space-y-4">
-                   <p className="text-sm font-bold text-slate-600">Securely track your child's safety status by scanning their ID or uploading an image of the QR code.</p>
+                   <p className="text-sm font-bold text-slate-600">Securely track your child's safety status by scanning their tactical ID or uploading an image of the QR code.</p>
                    <div className="flex flex-col sm:flex-row gap-4">
                       <Button type="button" className="h-16 flex-1 bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-widest text-lg rounded-2xl shadow-xl gap-3 transition-all active:scale-95" onClick={handleOpenScanner}>
                         <QrCode className="w-8 h-8" /> Start Secure Scan
@@ -265,7 +267,7 @@ export default function Home() {
                             </div>
                           </div>
                           <div className="p-6 bg-slate-900 flex flex-col gap-4">
-                            <p className="text-[10px] font-black uppercase text-slate-400 text-center">Position QR or upload from gallery</p>
+                            <p className="text-[10px] font-black uppercase text-slate-400 text-center">Position tactical QR or upload from device</p>
                             <Button variant="destructive" className="w-full font-black uppercase" onClick={() => setIsScanningQR(false)}>Close Scanner</Button>
                           </div>
                         </DialogContent>
@@ -274,8 +276,8 @@ export default function Home() {
                 </div>
                 <div className="hidden md:block w-[1px] h-16 bg-slate-200 mx-4" />
                 <div className="text-center md:text-left space-y-1">
-                   <p className="text-[10px] font-black text-muted-foreground uppercase">Lost an ID?</p>
-                   <p className="text-xs font-medium">Find nearest Hub for manual verification.</p>
+                   <p className="text-[10px] font-black text-muted-foreground uppercase">Lost ID?</p>
+                   <p className="text-xs font-medium">Proceed to Command Hub for manual verification.</p>
                 </div>
              </CardContent>
              <input 
