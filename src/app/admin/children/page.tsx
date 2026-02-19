@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { NavBar } from '@/components/nav-bar';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,7 +9,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { Button } from '@/components/ui/button';
 import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
 import { Badge } from '@/components/ui/badge';
-import { Printer, Search, Loader2, UserCircle, Eye, Camera, Edit2, Save, ExternalLink, MapPin } from 'lucide-react';
+import { Printer, Search, Loader2, UserCircle, Eye, Camera, Edit2, Save, ExternalLink, MapPin, Navigation } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
@@ -17,15 +17,22 @@ import { useFirestore, useCollection, useMemoFirebase, useUser, updateDocumentNo
 import { collection, query, where, doc } from 'firebase/firestore';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
-import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 export default function ChildrenList() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [editingChild, setEditingChild] = useState<any | null>(null);
+  const [now, setNow] = useState(new Date());
   const db = useFirestore();
   const { user } = useUser();
+
+  // Tick every few seconds to refresh the "Live" indicators
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   const childrenRef = useMemoFirebase(() => {
     if (!user || !db) return null;
@@ -125,12 +132,12 @@ export default function ChildrenList() {
 
   return (
     <div className="min-h-screen bg-background">
-      <NavBar title="My Registered IDs" backHref="/" />
+      <NavBar title="Guardian Registry" backHref="/" />
       <main className="container py-8 px-6 mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
           <div className="relative w-full md:w-96">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-            <Input placeholder="Search your registrations..." className="pl-10 h-11" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <Input placeholder="Search tactical registry..." className="pl-10 h-11" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
           <InteractiveHoverButton 
             text="New Registration" 
@@ -139,12 +146,12 @@ export default function ChildrenList() {
           />
         </div>
 
-        <Card className="shadow-md border-2">
+        <Card className="shadow-md border-2 overflow-hidden rounded-2xl">
           <CardContent className="p-0">
             {isLoading || !user ? (
               <div className="flex flex-col items-center justify-center py-24 gap-2">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                <p className="text-muted-foreground font-black uppercase text-[10px] tracking-widest">Syncing registry...</p>
+                <p className="text-muted-foreground font-black uppercase text-[10px] tracking-widest">Syncing field data...</p>
               </div>
             ) : (
               <Table>
@@ -154,7 +161,7 @@ export default function ChildrenList() {
                     <TableHead className="font-black text-[10px] uppercase tracking-widest">ID</TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-widest">Name</TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-widest">Status</TableHead>
-                    <TableHead className="font-black text-[10px] uppercase tracking-widest">Location</TableHead>
+                    <TableHead className="font-black text-[10px] uppercase tracking-widest">Live Location</TableHead>
                     <TableHead className="text-right font-black text-[10px] uppercase tracking-widest">Ops</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -166,9 +173,11 @@ export default function ChildrenList() {
                       const latestEvent = events
                         ?.filter(e => e.childId === child.id)
                         .sort((a, b) => new Date(b.scanTime).getTime() - new Date(a.scanTime).getTime())[0];
+                      
+                      const isVeryRecent = latestEvent && (now.getTime() - new Date(latestEvent.scanTime).getTime() < 30000);
 
                       return (
-                        <TableRow key={child.id}>
+                        <TableRow key={child.id} className={cn(isVeryRecent && "bg-primary/5")}>
                           <TableCell>
                             {child.photoUrl ? (
                               <div className="w-10 h-10 rounded-full border border-primary overflow-hidden relative shadow-sm">
@@ -181,18 +190,34 @@ export default function ChildrenList() {
                           <TableCell className="font-black text-primary text-lg">{child.id}</TableCell>
                           <TableCell className="font-black text-sm uppercase">{child.childName}</TableCell>
                           <TableCell>
-                            {latestEvent ? <Badge className="text-[9px] font-black uppercase">{latestEvent.status}</Badge> : <span className="text-[10px] text-slate-300 font-bold italic">No active signal</span>}
+                            {latestEvent ? (
+                              <div className="flex flex-col gap-1">
+                                <Badge className={cn("text-[9px] font-black uppercase w-fit", latestEvent.status === 'SOS' && "bg-red-600 animate-pulse")}>
+                                  {latestEvent.status}
+                                </Badge>
+                                {isVeryRecent && <span className="text-[8px] font-bold text-primary animate-pulse uppercase tracking-tighter">New Signal Incoming</span>}
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-slate-300 font-bold italic uppercase tracking-widest">No Signal</span>
+                            )}
                           </TableCell>
                           <TableCell>
                             {latestEvent ? (
-                              <Button 
-                                variant="ghost" 
-                                className="p-0 h-auto text-[10px] font-black uppercase text-primary hover:bg-transparent flex items-center gap-1"
-                                onClick={() => window.open(`https://www.google.com/maps?q=${latestEvent.locationLatitude},${latestEvent.locationLongitude}`)}
-                              >
-                                <MapPin className="w-3 h-3" />
-                                {latestEvent.locationLatitude.toFixed(4)}, {latestEvent.locationLongitude.toFixed(4)}
-                              </Button>
+                              <div className="flex flex-col gap-1">
+                                <Button 
+                                  variant="ghost" 
+                                  className="p-0 h-auto text-[10px] font-black uppercase text-primary hover:bg-transparent flex items-center gap-1 group"
+                                  onClick={() => window.open(`https://www.google.com/maps?q=${latestEvent.locationLatitude},${latestEvent.locationLongitude}`)}
+                                >
+                                  <MapPin className={cn("w-3 h-3", isVeryRecent && "text-red-500 animate-bounce")} />
+                                  <span className="group-hover:underline underline-offset-2">
+                                    {latestEvent.locationLatitude.toFixed(4)}, {latestEvent.locationLongitude.toFixed(4)}
+                                  </span>
+                                </Button>
+                                <p className="text-[8px] text-muted-foreground font-bold uppercase tracking-tighter">
+                                  Last Scan: {new Date(latestEvent.scanTime).toLocaleTimeString()}
+                                </p>
+                              </div>
                             ) : (
                               <span className="text-[10px] text-slate-300 font-bold italic">Stationary</span>
                             )}
