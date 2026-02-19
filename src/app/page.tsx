@@ -77,12 +77,12 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 overflow-hidden">
+    <div className="min-h-screen flex flex-col bg-slate-50 overflow-x-hidden">
       <NavBar title="CrowdCare Guardian" />
-      <main className="flex-1 flex flex-col items-center p-6 space-y-12">
+      <main className="flex-1 flex flex-col items-center p-4 md:p-6 space-y-12">
         <div className="relative z-10 w-full"><Hero /></div>
 
-        {/* Tactical Shortcuts - Primary Role Access */}
+        {/* Tactical Shortcuts - Responsive Grid */}
         <div className="w-full max-w-6xl space-y-12 relative z-10" id="roles">
           <div className="flex flex-col items-center gap-6">
             <div className="flex items-center gap-2 mb-2">
@@ -90,13 +90,13 @@ export default function Home() {
               <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Tactical Launchpad</h2>
             </div>
 
-            <div className="flex flex-col md:flex-row gap-8 w-full justify-center items-center">
+            <div className="flex flex-col lg:flex-row gap-8 w-full justify-center items-center">
               {/* 1:1 SCAN AN ID SHORTCUT */}
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => window.location.href = "/volunteer"}
-                className="aspect-square w-64 h-64 bg-slate-900 text-white rounded-[2.5rem] border-b-8 border-slate-950 shadow-2xl flex flex-col items-center justify-center gap-6 group transition-all"
+                className="aspect-square w-full max-w-[280px] md:w-64 md:h-64 bg-slate-900 text-white rounded-[2.5rem] border-b-8 border-slate-950 shadow-2xl flex flex-col items-center justify-center gap-6 group transition-all"
               >
                 <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center border-2 border-primary group-hover:bg-primary group-hover:text-white transition-colors">
                   <ScanLine className="w-10 h-10" />
@@ -107,7 +107,7 @@ export default function Home() {
                 </div>
               </motion.button>
 
-              <div className="flex flex-col gap-4 w-full md:w-80">
+              <div className="flex flex-col gap-4 w-full max-w-[280px] md:w-80">
                 {!user ? (
                   <InteractiveHoverButton 
                     text="Guardian Login" 
@@ -128,28 +128,28 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pb-12 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 pb-12 max-w-4xl mx-auto px-4">
             <RoleCard href="/admin/children" icon={<UserCog className="w-6 h-6" />} title="Guardian Panel" description="Registry & ID Management." />
             <RoleCard href="/volunteer" icon={<CameraIcon className="w-6 h-6" />} title="Volunteer App" description="QR Scanner & Dispatch Hub." />
           </div>
         </div>
 
         {/* SOS Emergency Hub */}
-        <div className="w-full max-w-2xl animate-entrance pb-24">
+        <div className="w-full max-w-2xl animate-entrance pb-24 px-4">
           <Card className="bg-red-50 border-4 border-red-600 shadow-2xl rounded-[2.5rem] overflow-hidden">
             <div className="bg-red-600 text-white p-6 text-center">
-              <h3 className="flex items-center justify-center gap-3 text-3xl font-black uppercase tracking-tighter"><Siren className="w-8 h-8 animate-pulse" /> Emergency SOS</h3>
+              <h3 className="flex items-center justify-center gap-3 text-2xl md:text-3xl font-black uppercase tracking-tighter"><Siren className="w-6 h-6 md:w-8 md:h-8 animate-pulse" /> Emergency SOS</h3>
             </div>
-            <CardContent className="p-8 space-y-6 text-center">
-              <p className="text-slate-900 font-bold text-lg leading-tight">Immediate danger? Trigger a silent GPS panic signal to our tactical control room.</p>
+            <CardContent className="p-6 md:p-8 space-y-6 text-center">
+              <p className="text-slate-900 font-bold text-base md:text-lg leading-tight">Immediate danger? Trigger a silent GPS panic signal to our tactical control room.</p>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button className="w-full h-20 text-2xl font-black uppercase shadow-xl bg-red-600 hover:bg-red-700 rounded-2xl border-b-8 border-red-900"><AlertTriangle className="mr-3 w-8 h-8" /> Trigger Panic SOS</Button>
+                  <Button className="w-full h-16 md:h-20 text-xl md:text-2xl font-black uppercase shadow-xl bg-red-600 hover:bg-red-700 rounded-2xl border-b-8 border-red-900"><AlertTriangle className="mr-3 w-6 h-6 md:w-8 md:h-8" /> Trigger Panic SOS</Button>
                 </AlertDialogTrigger>
-                <AlertDialogContent className="bg-slate-950 border-4 border-red-600 text-white rounded-[2rem]">
+                <AlertDialogContent className="bg-slate-950 border-4 border-red-600 text-white rounded-[2rem] max-w-[90vw] md:max-w-lg">
                   <AlertDialogHeader>
-                    <AlertDialogTitle className="flex items-center gap-3 text-2xl font-black uppercase text-red-500"><Siren className="w-8 h-8 animate-bounce" /> Confirm SOS</AlertDialogTitle>
-                    <AlertDialogDescription className="text-slate-300 font-bold text-base">Dispatch live GPS tracking to tactical response?</AlertDialogDescription>
+                    <AlertDialogTitle className="flex items-center gap-3 text-xl md:text-2xl font-black uppercase text-red-500"><Siren className="w-6 h-6 md:w-8 md:h-8 animate-bounce" /> Confirm SOS</AlertDialogTitle>
+                    <AlertDialogDescription className="text-slate-300 font-bold text-sm md:text-base">Dispatch live GPS tracking to tactical response?</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter className="flex-col sm:flex-row gap-2">
                     <AlertDialogCancel className="bg-transparent border-2 border-white text-white font-black uppercase h-12 rounded-xl">Cancel</AlertDialogCancel>
@@ -167,15 +167,15 @@ export default function Home() {
 
 function RoleCard({ href, icon, title, description }: { href: string; icon: React.ReactNode; title: string; description: string; }) {
   return (
-    <div className="relative group h-full">
+    <div className="relative group h-full w-full">
       <div className="relative h-full rounded-[1.25rem] border p-2 transition-all">
         <GlowingEffect spread={40} glow={true} disabled={false} proximity={64} inactiveZone={0.01} borderWidth={3} />
-        <Link href={href} className="relative flex h-full flex-col justify-between overflow-hidden rounded-xl border bg-background p-6 shadow-sm transition-all group-hover:bg-slate-50/50">
+        <Link href={href} className="relative flex h-full flex-col justify-between overflow-hidden rounded-xl border bg-background p-4 md:p-6 shadow-sm transition-all group-hover:bg-slate-50/50">
           <div className="space-y-4">
-            <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center group-hover:bg-primary/10 group-hover:text-primary transition-colors">{icon}</div>
+            <div className="w-10 h-10 md:w-12 md:h-12 bg-muted rounded-lg flex items-center justify-center group-hover:bg-primary/10 group-hover:text-primary transition-colors">{icon}</div>
             <div className="space-y-1">
-              <h3 className="text-2xl font-black tracking-tight uppercase">{title}</h3>
-              <p className="text-muted-foreground font-medium text-sm">{description}</p>
+              <h3 className="text-xl md:text-2xl font-black tracking-tight uppercase">{title}</h3>
+              <p className="text-muted-foreground font-medium text-xs md:text-sm">{description}</p>
             </div>
           </div>
         </Link>

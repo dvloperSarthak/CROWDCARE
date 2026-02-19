@@ -38,6 +38,7 @@ export function TacticalNotificationListener() {
       if ('serviceWorker' in navigator) {
         try {
           const registration = await navigator.serviceWorker.ready;
+          // IMPORTANT: Use ServiceWorkerRegistration to avoid constructor errors in foreground
           registration.showNotification(title, {
             body,
             icon: 'https://picsum.photos/seed/guardian/192/192',
