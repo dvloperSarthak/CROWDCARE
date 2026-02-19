@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { UserCog, Camera, LayoutDashboard, Fingerprint, LogIn, UserCircle, ShieldCheck, ShieldAlert, Loader2, Siren, AlertTriangle, Search, QrCode, RefreshCw, Image as ImageIcon, Upload } from 'lucide-react';
+import { UserCog, Camera, LayoutDashboard, Fingerprint, UserCircle, ShieldCheck, ShieldAlert, Loader2, Siren, AlertTriangle, QrCode, RefreshCw, Image as ImageIcon, Upload, Camera as CameraIcon } from 'lucide-react';
 import { useAuth, initiateAnonymousSignIn, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
@@ -23,12 +23,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Card, CardContent } from '@/components/ui/card';
 import jsQR from 'jsqr';
 
@@ -38,7 +32,7 @@ export default function Home() {
   const db = useFirestore();
   const { toast } = useToast();
   const [isSOSLoading, setIsSOSLoading] = useState(false);
-  const [isScanningQR, setIsScanningQR] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -60,6 +54,7 @@ export default function Home() {
   const isLoadingRoles = (loadingAdmin || loadingOperator) && !isEmailUser;
 
   const startScanning = async (mode: 'user' | 'environment' = facingMode) => {
+    setIsScanning(true);
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
     }
@@ -72,27 +67,15 @@ export default function Home() {
         requestRef.current = requestAnimationFrame(tick);
       }
     } catch (err) {
-      setIsScanningQR(false);
+      setIsScanning(false);
       toast({ variant: 'destructive', title: 'Scanner Offline', description: 'Camera access is required.' });
     }
   };
 
-  const handleOpenScanner = () => {
-    setIsScanningQR(true);
-  };
-
-  useEffect(() => {
-    if (isScanningQR) {
-      startScanning(facingMode);
-    } else {
-      stopScanning();
-    }
-    return () => stopScanning();
-  }, [isScanningQR, facingMode]);
-
   const switchCamera = () => {
     const newMode = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(newMode);
+    if (isScanning) startScanning(newMode);
   };
 
   const stopScanning = () => {
@@ -101,6 +84,7 @@ export default function Home() {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
       videoRef.current.srcObject = null;
     }
+    setIsScanning(false);
   };
 
   const handleGalleryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -112,7 +96,6 @@ export default function Home() {
       const result = event.target?.result as string;
       if (!result) return;
 
-      // Explicitly use window.Image to avoid conflict with Next.js Image component
       const img = new window.Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
@@ -124,7 +107,7 @@ export default function Home() {
           const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
           const code = jsQR(imageData.data, imageData.width, imageData.height);
           if (code) {
-            setIsScanningQR(false);
+            stopScanning();
             window.location.href = `/status/${code.data}`;
           } else {
             toast({ variant: 'destructive', title: 'No QR Found', description: 'Could not detect a tactical ID in this image.' });
@@ -149,7 +132,7 @@ export default function Home() {
           const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
           const code = jsQR(imageData.data, imageData.width, imageData.height);
           if (code) {
-            setIsScanningQR(false);
+            stopScanning();
             window.location.href = `/status/${code.data}`;
             return;
           }
@@ -215,72 +198,47 @@ export default function Home() {
       <main className="flex-1 flex flex-col items-center p-6 space-y-12">
         <div className="relative z-10 w-full"><Hero /></div>
 
-        <div className="w-full max-w-4xl animate-entrance">
-           <Card className="border-4 border-slate-900 rounded-[2rem] shadow-2xl bg-white overflow-hidden">
-             <div className="bg-slate-900 p-4 flex items-center justify-center gap-2">
-                <Search className="w-5 h-5 text-primary" />
-                <h3 className="text-sm font-black text-white uppercase tracking-widest">Parent Status Hub</h3>
-             </div>
-             <CardContent className="p-8 flex flex-col md:flex-row gap-6 items-center">
-                <div className="flex-1 space-y-4">
-                   <p className="text-sm font-bold text-slate-600">Securely track your child's safety status by scanning their tactical ID or uploading an image of the QR code.</p>
-                   <div className="flex flex-col sm:flex-row gap-4">
-                      <Button type="button" className="h-16 flex-1 bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-widest text-lg rounded-2xl shadow-xl gap-3 transition-all active:scale-95" onClick={handleOpenScanner}>
-                        <QrCode className="w-8 h-8" /> Start Secure Scan
-                      </Button>
-                      
-                      <Button type="button" variant="outline" className="h-16 flex-1 border-2 border-slate-900 font-black uppercase tracking-widest text-lg rounded-2xl shadow-md gap-3 hover:bg-slate-50" onClick={() => galleryInputRef.current?.click()}>
-                        <Upload className="w-8 h-8 text-primary" /> Upload ID Image
-                      </Button>
+        <div className="w-full max-w-xl animate-entrance">
+           <Card className="border-4 border-slate-900 bg-black aspect-square flex flex-col items-center justify-center relative overflow-hidden shadow-2xl rounded-[2.5rem]">
+              <video ref={videoRef} className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${isScanning ? 'opacity-100' : 'opacity-0'}`} autoPlay muted playsInline />
+              <canvas ref={canvasRef} className="hidden" />
+              
+              <div className="absolute top-0 left-0 right-0 bg-slate-900/80 p-4 flex items-center justify-center gap-2 z-30">
+                <QrCode className="w-5 h-5 text-primary" />
+                <h3 className="text-[10px] font-black text-white uppercase tracking-widest">Secure Guardian Scanner</h3>
+              </div>
 
-                      <Dialog open={isScanningQR} onOpenChange={setIsScanningQR}>
-                        <DialogContent className="sm:max-w-md bg-slate-950 border-4 border-primary text-white p-0 overflow-hidden">
-                          <DialogHeader className="p-4 border-b border-white/10">
-                            <DialogTitle className="text-center font-black uppercase text-sm tracking-widest">Scanning Guardian QR</DialogTitle>
-                          </DialogHeader>
-                          <div className="relative aspect-square w-full bg-black flex items-center justify-center">
-                            <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" autoPlay muted playsInline />
-                            <canvas ref={canvasRef} className="hidden" />
-                            <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center">
-                               <div className="w-64 h-64 border-2 border-primary border-dashed rounded-3xl animate-pulse" />
-                               <div className="absolute top-0 w-full h-1 bg-primary shadow-[0_0_20px_rgba(255,119,51,1)] animate-scan-line" />
-                            </div>
-                            <div className="absolute bottom-4 right-4 z-20 flex gap-2">
-                              <Button 
-                                type="button"
-                                variant="secondary" 
-                                size="icon" 
-                                className="rounded-full h-12 w-12 opacity-80 hover:opacity-100 shadow-xl"
-                                onClick={() => galleryInputRef.current?.click()}
-                              >
-                                <ImageIcon className="h-6 w-6" />
-                              </Button>
-                              <Button 
-                                type="button"
-                                variant="secondary" 
-                                size="icon" 
-                                className="rounded-full h-12 w-12 opacity-80 hover:opacity-100 shadow-xl"
-                                onClick={switchCamera}
-                              >
-                                <RefreshCw className="h-6 w-6" />
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="p-6 bg-slate-900 flex flex-col gap-4">
-                            <p className="text-[10px] font-black uppercase text-slate-400 text-center">Position tactical QR or upload from device</p>
-                            <Button variant="destructive" className="w-full font-black uppercase" onClick={() => setIsScanningQR(false)}>Close Scanner</Button>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                   </div>
+              {isScanning && (
+                <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center">
+                  <div className="w-64 h-64 border-2 border-primary border-dashed rounded-3xl animate-pulse" />
+                  <div className="absolute top-0 w-full h-1 bg-primary shadow-[0_0_20px_rgba(255,119,51,1)] animate-scan-line" />
+                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-4 pointer-events-auto">
+                    <Button variant="destructive" className="h-10 px-6 font-black uppercase text-[10px]" onClick={stopScanning}>Stop Scanner</Button>
+                    <div className="flex gap-2">
+                      <Button variant="secondary" size="icon" className="h-10 w-10 rounded-full shadow-xl" onClick={() => galleryInputRef.current?.click()}>
+                        <ImageIcon className="h-5 w-5" />
+                      </Button>
+                      <Button variant="secondary" size="icon" className="h-10 w-10 rounded-full shadow-xl" onClick={switchCamera}>
+                        <RefreshCw className="h-5 w-5" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-                <div className="hidden md:block w-[1px] h-16 bg-slate-200 mx-4" />
-                <div className="text-center md:text-left space-y-1">
-                   <p className="text-[10px] font-black text-muted-foreground uppercase">Lost ID?</p>
-                   <p className="text-xs font-medium">Proceed to Command Hub for manual verification.</p>
+              )}
+
+              {!isScanning && (
+                <div className="text-center space-y-4 z-20 px-6 w-full max-w-xs">
+                  <div className="bg-white/10 p-8 rounded-full inline-block backdrop-blur-xl border-2 border-white/20 shadow-2xl">
+                    <CameraIcon className="w-12 h-12 text-white" />
+                  </div>
+                  <Button onClick={() => startScanning()} className="w-full h-16 text-lg font-black uppercase tracking-widest bg-primary rounded-2xl shadow-[0_0_20px_rgba(255,119,51,0.4)]">Start Secure Scan</Button>
+                  <div className="flex flex-col gap-2">
+                    <Button variant="ghost" className="text-white text-[10px] font-black uppercase" onClick={() => galleryInputRef.current?.click()}>Upload ID From Gallery</Button>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Secure ID Verification Hub</p>
+                  </div>
                 </div>
-             </CardContent>
-             <input 
+              )}
+              <input 
                 type="file" 
                 ref={galleryInputRef} 
                 className="hidden" 
@@ -288,6 +246,10 @@ export default function Home() {
                 onChange={handleGalleryUpload} 
               />
            </Card>
+           <div className="text-center mt-4 space-y-1">
+             <p className="text-xs font-bold text-slate-500 uppercase">Parent Status Hub</p>
+             <p className="text-[9px] font-medium text-slate-400">Lost ID? Proceed to Command Hub for manual verification.</p>
+           </div>
         </div>
 
         <div className="w-full max-w-6xl space-y-8 relative z-10" id="roles">
@@ -325,7 +287,7 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <RoleCard href="/admin/children" icon={<UserCog className="w-6 h-6" />} title="Guardian Panel" description="Registry & ID Management." isRestricted={!isAdmin} isLoading={isLoadingRoles} subtext={!isAdmin ? "Auth Required" : "Mode Active"} />
-            <RoleCard href="/volunteer" icon={<Camera className="w-6 h-6" />} title="Volunteer App" description="QR Scanner & Dispatch." onClick={handleGuestAccess} subtext="Public Access" />
+            <RoleCard href="/volunteer" icon={<CameraIcon className="w-6 h-6" />} title="Volunteer App" description="QR Scanner & Dispatch." onClick={handleGuestAccess} subtext="Public Access" />
             <RoleCard href="/control-room" icon={<LayoutDashboard className="w-6 h-6" />} title="Control Room" description="Live Dashboard & Intel." isRestricted={!isOperator && !isAdmin} isLoading={isLoadingRoles} subtext={!isOperator && !isAdmin ? "Auth Required" : "Dashboard Active"} />
           </div>
         </div>
