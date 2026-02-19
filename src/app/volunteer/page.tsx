@@ -123,15 +123,15 @@ export default function VolunteerApp() {
   useEffect(() => {
     if (activeAlertDoc?.status === 'Parent Notified') {
       toast({
-        title: "STATUS UPDATE",
-        description: "Guardian notified. Proceed to designated hub.",
+        title: "MISSION UPDATE",
+        description: "Parent has been notified. Maintain current position or escort to nearest hub.",
         variant: "default",
       });
     }
     if (activeAlertDoc?.status === 'Child Reunited') {
       toast({
         title: "MISSION COMPLETE",
-        description: "Subject identified and reunited successfully.",
+        description: "Subject identified and reunited successfully. Sentinel status updated.",
         className: "bg-teal-600 text-white font-black",
       });
     }
@@ -222,7 +222,6 @@ export default function VolunteerApp() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      // Explicitly use window.Image to avoid conflict with Next.js Image component
       const img = new window.Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
