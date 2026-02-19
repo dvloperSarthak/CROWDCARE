@@ -24,6 +24,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent } from '@/components/ui/card';
+import { motion } from 'motion/react';
 
 export default function Home() {
   const auth = useAuth();
@@ -90,34 +91,47 @@ export default function Home() {
               <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Tactical Launchpad</h2>
             </div>
 
-            <div className="flex flex-col md:flex-row gap-4 w-full justify-center items-center">
-              <InteractiveHoverButton 
-                text="Volunteer Scan" 
-                className="h-20 w-full md:w-80 text-xl font-black uppercase tracking-widest bg-slate-900 text-white rounded-3xl border-b-8 border-slate-950 shadow-2xl"
+            <div className="flex flex-col md:flex-row gap-8 w-full justify-center items-center">
+              {/* 1:1 SCAN AN ID SHORTCUT */}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => window.location.href = "/volunteer"}
-              />
-              {!user ? (
-                <InteractiveHoverButton 
-                  text="Guardian Login" 
-                  className="h-20 w-full md:w-80 text-xl font-black uppercase tracking-widest"
-                  onClick={() => window.location.href = "/login"}
-                />
-              ) : (
-                <div className="bg-white border-4 border-primary/20 rounded-3xl px-8 py-4 flex items-center gap-4 shadow-xl animate-entrance h-20 w-full md:w-80">
-                  <ShieldCheck className="w-8 h-8 text-teal-600" />
-                  <div className="flex flex-col">
-                    <span className="font-black text-[10px] uppercase tracking-widest text-slate-400 mb-1">Authenticated</span>
-                    <span className="text-xs font-black text-slate-900 truncate max-w-[150px]">{user.email || 'Tactical Guest'}</span>
-                  </div>
+                className="aspect-square w-64 h-64 bg-slate-900 text-white rounded-[2.5rem] border-b-8 border-slate-950 shadow-2xl flex flex-col items-center justify-center gap-6 group transition-all"
+              >
+                <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center border-2 border-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                  <ScanLine className="w-10 h-10" />
                 </div>
-              )}
+                <div className="text-center">
+                  <span className="block text-2xl font-black uppercase tracking-widest">SCAN AN ID</span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 group-hover:text-primary transition-colors">Volunteer Terminal</span>
+                </div>
+              </motion.button>
+
+              <div className="flex flex-col gap-4 w-full md:w-80">
+                {!user ? (
+                  <InteractiveHoverButton 
+                    text="Guardian Login" 
+                    className="h-20 w-full text-xl font-black uppercase tracking-widest"
+                    onClick={() => window.location.href = "/login"}
+                  />
+                ) : (
+                  <div className="bg-white border-4 border-primary/20 rounded-3xl px-8 py-4 flex items-center gap-4 shadow-xl animate-entrance h-20 w-full">
+                    <ShieldCheck className="w-8 h-8 text-teal-600" />
+                    <div className="flex flex-col">
+                      <span className="font-black text-[10px] uppercase tracking-widest text-slate-400 mb-1">Authenticated</span>
+                      <span className="text-xs font-black text-slate-900 truncate max-w-[150px]">{user.email || 'Tactical Guest'}</span>
+                    </div>
+                  </div>
+                )}
+                <RoleCard href="/control-room" icon={<LayoutDashboard className="w-6 h-6" />} title="Control Room" description="Live Dashboard & Intel." />
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pb-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pb-12 max-w-4xl mx-auto">
             <RoleCard href="/admin/children" icon={<UserCog className="w-6 h-6" />} title="Guardian Panel" description="Registry & ID Management." />
             <RoleCard href="/volunteer" icon={<CameraIcon className="w-6 h-6" />} title="Volunteer App" description="QR Scanner & Dispatch Hub." />
-            <RoleCard href="/control-room" icon={<LayoutDashboard className="w-6 h-6" />} title="Control Room" description="Live Dashboard & Intel." />
           </div>
         </div>
 
