@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { UserCog, Camera, LayoutDashboard, Fingerprint, LogIn, UserCircle, ShieldCheck, ShieldAlert, Loader2, Siren, AlertTriangle, Search, QrCode, RefreshCw } from 'lucide-react';
+import { UserCog, Camera, LayoutDashboard, Fingerprint, LogIn, UserCircle, ShieldCheck, ShieldAlert, Loader2, Siren, AlertTriangle, Search, QrCode, RefreshCw, Image as ImageIcon } from 'lucide-react';
 import { useAuth, initiateAnonymousSignIn, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
@@ -47,6 +47,7 @@ export default function Home() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   // Role verification
   const adminRoleRef = useMemoFirebase(() => user ? doc(db, 'roles_admin', user.uid) : null, [db, user]);
@@ -63,7 +64,6 @@ export default function Home() {
 
   const startScanning = async (mode: 'user' | 'environment' = facingMode) => {
     setIsScanningQR(true);
-    // Stop previous tracks if any
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
     }
@@ -94,6 +94,36 @@ export default function Home() {
       videoRef.current.srcObject = null;
     }
     setIsScanningQR(false);
+  };
+
+  const handleGalleryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        if (context) {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          context.drawImage(img, 0, 0);
+          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
+          if (code) {
+            setStatusId(code.data);
+            stopScanning();
+            window.location.href = `/status/${code.data}`;
+          } else {
+            toast({ variant: 'destructive', title: 'No QR Found', description: 'Could not detect a Guardian ID in this image.' });
+          }
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
   };
 
   const tick = () => {
@@ -215,17 +245,34 @@ export default function Home() {
                                <div className="w-64 h-64 border-2 border-primary border-dashed rounded-3xl animate-pulse" />
                                <div className="absolute top-0 w-full h-1 bg-primary shadow-[0_0_20px_rgba(255,119,51,1)] animate-scan-line" />
                             </div>
-                            <Button 
-                              variant="secondary" 
-                              size="icon" 
-                              className="absolute bottom-4 right-4 z-20 rounded-full h-12 w-12 opacity-80 hover:opacity-100"
-                              onClick={switchCamera}
-                            >
-                              <RefreshCw className="h-6 w-6" />
-                            </Button>
+                            <div className="absolute bottom-4 right-4 z-20 flex gap-2">
+                              <Button 
+                                variant="secondary" 
+                                size="icon" 
+                                className="rounded-full h-12 w-12 opacity-80 hover:opacity-100"
+                                onClick={() => galleryInputRef.current?.click()}
+                              >
+                                <ImageIcon className="h-6 w-6" />
+                              </Button>
+                              <Button 
+                                variant="secondary" 
+                                size="icon" 
+                                className="rounded-full h-12 w-12 opacity-80 hover:opacity-100"
+                                onClick={switchCamera}
+                              >
+                                <RefreshCw className="h-6 w-6" />
+                              </Button>
+                            </div>
+                            <input 
+                              type="file" 
+                              ref={galleryInputRef} 
+                              className="hidden" 
+                              accept="image/*" 
+                              onChange={handleGalleryUpload} 
+                            />
                           </div>
                           <div className="p-4 bg-slate-900 text-center">
-                            <p className="text-[10px] font-black uppercase text-slate-400">Position the ID QR code within the frame</p>
+                            <p className="text-[10px] font-black uppercase text-slate-400">Position the QR or upload from gallery</p>
                           </div>
                         </DialogContent>
                       </Dialog>

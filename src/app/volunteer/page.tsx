@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -44,7 +43,8 @@ import {
   MessageSquare,
   Sparkles,
   Megaphone,
-  RefreshCw
+  RefreshCw,
+  Image as ImageIcon
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, useDoc, useMemoFirebase, setDocumentNonBlocking, updateDocumentNonBlocking, useAuth, initiateAnonymousSignIn, useCollection } from '@/firebase';
@@ -76,6 +76,7 @@ export default function VolunteerApp() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const statusPhotoRef = useRef<HTMLInputElement>(null);
   const requestRef = useRef<number>(null);
+  const qrGalleryInputRef = useRef<HTMLInputElement>(null);
   
   const db = useFirestore();
   const auth = useAuth();
@@ -179,6 +180,36 @@ export default function VolunteerApp() {
     const newMode = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(newMode);
     startCamera(newMode);
+  };
+
+  const handleQrGalleryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        if (context) {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          context.drawImage(img, 0, 0);
+          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
+          if (code) {
+            setScannedId(code.data);
+            stopCamera();
+            toast({ title: "ID Decoded", description: "Identity verified via gallery asset." });
+          } else {
+            toast({ variant: 'destructive', title: 'Decode Failure', description: 'Could not detect a tactical QR in this image.' });
+          }
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
   };
 
   const tick = () => {
@@ -324,9 +355,14 @@ export default function VolunteerApp() {
                   <div className="w-full h-1 bg-primary shadow-[0_0_20px_rgba(255,119,51,1)] animate-scan-line absolute" />
                   <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-4">
                     <Button variant="destructive" className="h-10 px-6 font-black uppercase text-[10px]" onClick={stopCamera}>Cancel</Button>
-                    <Button variant="secondary" size="icon" className="h-10 w-10 rounded-full" onClick={switchCamera}>
-                      <RefreshCw className="h-5 w-5" />
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button variant="secondary" size="icon" className="h-10 w-10 rounded-full" onClick={() => qrGalleryInputRef.current?.click()}>
+                        <ImageIcon className="h-5 w-5" />
+                      </Button>
+                      <Button variant="secondary" size="icon" className="h-10 w-10 rounded-full" onClick={switchCamera}>
+                        <RefreshCw className="h-5 w-5" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -336,9 +372,19 @@ export default function VolunteerApp() {
                     <Camera className="w-12 h-12 text-white" />
                   </div>
                   <Button onClick={() => startCamera()} className="w-full h-16 text-lg font-black uppercase tracking-widest bg-primary rounded-2xl">Scan ID</Button>
-                  <Button variant="ghost" className="text-white text-[10px] font-black uppercase" onClick={() => setManualDescription('describe')}>Describe Child Instead</Button>
+                  <div className="flex flex-col gap-2">
+                    <Button variant="ghost" className="text-white text-[10px] font-black uppercase" onClick={() => qrGalleryInputRef.current?.click()}>Upload QR From Gallery</Button>
+                    <Button variant="ghost" className="text-white text-[10px] font-black uppercase" onClick={() => setManualDescription('describe')}>Describe Child Instead</Button>
+                  </div>
                 </div>
               )}
+              <input 
+                type="file" 
+                ref={qrGalleryInputRef} 
+                className="hidden" 
+                accept="image/*" 
+                onChange={handleQrGalleryUpload} 
+              />
             </Card>
 
             {manualDescription && !scannedId && (
@@ -351,7 +397,7 @@ export default function VolunteerApp() {
                   placeholder="Describe clothing, hair, age, etc..." 
                   className="min-h-[80px]"
                   value={manualDescription === 'describe' ? '' : manualDescription}
-                  onChange={(e) => setManualDescription(e.target.value)}
+                  onChange={(e) => manualDescription === 'describe' ? setManualDescription(e.target.value) : setManualDescription(e.target.value)}
                 />
                 <Button className="w-full h-10 font-black uppercase text-[10px]" onClick={runAiMatcher} disabled={isMatching}>
                   {isMatching ? <Loader2 className="animate-spin" /> : "Run AI Search"}
