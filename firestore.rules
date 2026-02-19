@@ -4,7 +4,7 @@ service cloud.firestore {
 
     /**
      * CROWDCARE GUARDIAN SECURITY RULES
-     * Version 2.5.2 - Tactical Deployment
+     * Version 2.5.3 - AI Matching Support
      */
 
     // --- Helper Functions ---
@@ -63,10 +63,8 @@ service cloud.firestore {
     }
 
     match /children/{childId} {
-      // Volunteers need to 'get' a child's info to verify identity after scanning
-      allow get: if isSignedIn(); 
-      // Only staff can list/browse the entire child registry
-      allow list: if isStaff();
+      // Volunteers need to 'get' info after scanning and 'list' for AI matching fallback
+      allow get, list: if isSignedIn(); 
       allow create, update, delete: if isStaff();
     }
 
@@ -84,7 +82,7 @@ service cloud.firestore {
     }
 
     match /broadcasts/{broadcastId} {
-      // Simplified and reinforced rule to ensure tactical updates reach all users
+      // All authenticated users can read broadcasts for tactical awareness
       allow read: if request.auth != null;
       allow write: if isStaff();
     }
