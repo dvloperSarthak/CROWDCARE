@@ -1,16 +1,16 @@
+
 "use client";
 
 import Link from 'next/link';
-import { UserCog, Camera, LayoutDashboard, Fingerprint, UserCircle, ShieldCheck, ShieldAlert, Loader2, Siren, AlertTriangle, QrCode, RefreshCw, Image as ImageIcon, Camera as CameraIcon, Zap } from 'lucide-react';
-import { useAuth, initiateAnonymousSignIn, useUser, useFirestore, useMemoFirebase } from '@/firebase';
+import { UserCog, LayoutDashboard, ShieldCheck, Loader2, Siren, AlertTriangle, Zap, Camera as CameraIcon } from 'lucide-react';
+import { useAuth, initiateAnonymousSignIn, useUser, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
 import { GlowingEffect } from '@/components/ui/glowing-effect';
 import { Hero } from '@/components/ui/animated-hero';
-import { cn } from '@/lib/utils';
 import { NavBar } from '@/components/nav-bar';
 import { doc } from 'firebase/firestore';
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -24,7 +24,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent } from '@/components/ui/card';
-import jsQR from 'jsqr';
 
 export default function Home() {
   const auth = useAuth();
@@ -32,102 +31,6 @@ export default function Home() {
   const db = useFirestore();
   const { toast } = useToast();
   const [isSOSLoading, setIsSOSLoading] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
-  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
-  
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const requestRef = useRef<number>(null);
-  const galleryInputRef = useRef<HTMLInputElement>(null);
-
-  const startScanning = async (mode: 'user' | 'environment' = facingMode) => {
-    setIsScanning(true);
-    if (videoRef.current?.srcObject) {
-      (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
-    }
-    
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-        requestRef.current = requestAnimationFrame(tick);
-      }
-    } catch (err) {
-      setIsScanning(false);
-      toast({ variant: 'destructive', title: 'Scanner Offline', description: 'Camera access is required.' });
-    }
-  };
-
-  const switchCamera = () => {
-    const newMode = facingMode === 'user' ? 'environment' : 'user';
-    setFacingMode(newMode);
-    if (isScanning) startScanning(newMode);
-  };
-
-  const stopScanning = () => {
-    if (requestRef.current) cancelAnimationFrame(requestRef.current);
-    if (videoRef.current?.srcObject) {
-      (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
-      videoRef.current.srcObject = null;
-    }
-    setIsScanning(false);
-  };
-
-  const handleGalleryUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      if (!result) return;
-
-      const img = new window.Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        if (context) {
-          canvas.width = img.width;
-          canvas.height = img.height;
-          context.drawImage(img, 0, 0);
-          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height);
-          if (code) {
-            stopScanning();
-            window.location.href = `/status/${code.data}`;
-          } else {
-            toast({ variant: 'destructive', title: 'No QR Found', description: 'Could not detect a tactical ID in this image.' });
-          }
-        }
-      };
-      img.src = result;
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const tick = () => {
-    if (videoRef.current?.readyState === videoRef.current?.HAVE_ENOUGH_DATA) {
-      const canvas = canvasRef.current;
-      const video = videoRef.current;
-      if (canvas && video) {
-        const context = canvas.getContext('2d', { willReadFrequently: true });
-        if (context) {
-          canvas.height = video.videoHeight;
-          canvas.width = video.videoWidth;
-          context.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height);
-          if (code) {
-            stopScanning();
-            window.location.href = `/status/${code.data}`;
-            return;
-          }
-        }
-      }
-    }
-    requestRef.current = requestAnimationFrame(tick);
-  };
 
   const triggerGlobalSOS = async () => {
     setIsSOSLoading(true);
@@ -178,61 +81,6 @@ export default function Home() {
       <NavBar title="CrowdCare Guardian" />
       <main className="flex-1 flex flex-col items-center p-6 space-y-12">
         <div className="relative z-10 w-full"><Hero /></div>
-
-        {/* Tactical Parent Status Hub - Unified Scanner Experience */}
-        <div className="w-full max-w-xl animate-entrance">
-           <Card className="border-4 border-slate-900 bg-black aspect-square flex flex-col items-center justify-center relative overflow-hidden shadow-2xl rounded-[2.5rem]">
-              <video ref={videoRef} className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${isScanning ? 'opacity-100' : 'opacity-0'}`} autoPlay muted playsInline />
-              <canvas ref={canvasRef} className="hidden" />
-              
-              <div className="absolute top-0 left-0 right-0 bg-slate-900/80 p-4 flex items-center justify-center gap-2 z-30">
-                <QrCode className="w-5 h-5 text-primary" />
-                <h3 className="text-[10px] font-black text-white uppercase tracking-widest">Tactical Hub Scanner</h3>
-              </div>
-
-              {isScanning && (
-                <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center">
-                  <div className="w-64 h-64 border-2 border-primary border-dashed rounded-3xl animate-pulse" />
-                  <div className="absolute top-0 w-full h-1 bg-primary shadow-[0_0_20px_rgba(255,119,51,1)] animate-scan-line" />
-                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-4 pointer-events-auto">
-                    <Button variant="destructive" className="h-10 px-6 font-black uppercase text-[10px]" onClick={stopScanning}>Stop Scanner</Button>
-                    <div className="flex gap-2">
-                      <Button variant="secondary" size="icon" className="h-10 w-10 rounded-full shadow-xl" onClick={() => galleryInputRef.current?.click()}>
-                        <ImageIcon className="h-5 w-5" />
-                      </Button>
-                      <Button variant="secondary" size="icon" className="h-10 w-10 rounded-full shadow-xl" onClick={switchCamera}>
-                        <RefreshCw className="h-5 w-5" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {!isScanning && (
-                <div className="text-center space-y-4 z-20 px-6 w-full max-w-xs">
-                  <div className="bg-white/10 p-8 rounded-full inline-block backdrop-blur-xl border-2 border-white/20 shadow-2xl">
-                    <CameraIcon className="w-12 h-12 text-white" />
-                  </div>
-                  <Button onClick={() => startScanning()} className="w-full h-16 text-lg font-black uppercase tracking-widest bg-primary rounded-2xl shadow-[0_0_20px_rgba(255,119,51,0.4)]">Start Secure Scan</Button>
-                  <div className="flex flex-col gap-2">
-                    <Button variant="ghost" className="text-white text-[10px] font-black uppercase" onClick={() => galleryInputRef.current?.click()}>Upload ID From Gallery</Button>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Secure ID Verification Hub</p>
-                  </div>
-                </div>
-              )}
-              <input 
-                type="file" 
-                ref={galleryInputRef} 
-                className="hidden" 
-                accept="image/*" 
-                onChange={handleGalleryUpload} 
-              />
-           </Card>
-           <div className="text-center mt-4 space-y-1">
-             <p className="text-xs font-bold text-slate-500 uppercase">Parent Status Hub</p>
-             <p className="text-[9px] font-medium text-slate-400">Lost ID? Proceed to Command Hub for manual verification.</p>
-           </div>
-        </div>
 
         {/* Tactical Shortcuts - Quick Access Roles */}
         <div className="w-full max-w-6xl space-y-8 relative z-10" id="roles">
