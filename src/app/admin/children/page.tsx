@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -8,7 +9,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { Button } from '@/components/ui/button';
 import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
 import { Badge } from '@/components/ui/badge';
-import { Printer, Search, Loader2, UserCircle, Eye, Camera, Edit2, Save, ExternalLink } from 'lucide-react';
+import { Printer, Search, Loader2, UserCircle, Eye, Camera, Edit2, Save, ExternalLink, MapPin } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
@@ -153,12 +154,13 @@ export default function ChildrenList() {
                     <TableHead className="font-black text-[10px] uppercase tracking-widest">ID</TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-widest">Name</TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-widest">Status</TableHead>
+                    <TableHead className="font-black text-[10px] uppercase tracking-widest">Location</TableHead>
                     <TableHead className="text-right font-black text-[10px] uppercase tracking-widest">Ops</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.length === 0 ? (
-                    <TableRow><TableCell colSpan={5} className="text-center py-20 text-muted-foreground">No registrations found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={6} className="text-center py-20 text-muted-foreground">No registrations found.</TableCell></TableRow>
                   ) : (
                     filtered.map((child) => {
                       const latestEvent = events
@@ -180,6 +182,20 @@ export default function ChildrenList() {
                           <TableCell className="font-black text-sm uppercase">{child.childName}</TableCell>
                           <TableCell>
                             {latestEvent ? <Badge className="text-[9px] font-black uppercase">{latestEvent.status}</Badge> : <span className="text-[10px] text-slate-300 font-bold italic">No active signal</span>}
+                          </TableCell>
+                          <TableCell>
+                            {latestEvent ? (
+                              <Button 
+                                variant="ghost" 
+                                className="p-0 h-auto text-[10px] font-black uppercase text-primary hover:bg-transparent flex items-center gap-1"
+                                onClick={() => window.open(`https://www.google.com/maps?q=${latestEvent.locationLatitude},${latestEvent.locationLongitude}`)}
+                              >
+                                <MapPin className="w-3 h-3" />
+                                {latestEvent.locationLatitude.toFixed(4)}, {latestEvent.locationLongitude.toFixed(4)}
+                              </Button>
+                            ) : (
+                              <span className="text-[10px] text-slate-300 font-bold italic">Stationary</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">

@@ -1,14 +1,15 @@
 
-// Guardian Tactical Service Worker
+/* public/sw.js */
+// Guardian Tactical Service Worker for Background Notifications
+
 self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(clients.claim());
 });
 
-// Handle background notification clicks
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil(
@@ -21,15 +22,16 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-// Listen for messages from the app
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SHOW_TACTICAL_ALERT') {
-    const { title, body, tag } = event.data.payload;
-    self.registration.showNotification(title, {
-      body,
-      icon: 'https://picsum.photos/seed/guardian/192/192',
-      tag,
-      badge: 'https://picsum.photos/seed/guardian/96/96',
-    });
+self.addEventListener('push', (event) => {
+  if (event.data) {
+    const data = event.data.json();
+    const options = {
+      body: data.body,
+      icon: '/icon.png', // Optional icon
+      vibrate: [200, 100, 200],
+      tag: data.tag || 'guardian-alert',
+      data: { url: '/' }
+    };
+    event.waitUntil(self.registration.showNotification(data.title, options));
   }
 });
