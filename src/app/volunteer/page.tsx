@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -356,10 +357,10 @@ export default function VolunteerApp() {
                   <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-4">
                     <Button variant="destructive" className="h-10 px-6 font-black uppercase text-[10px]" onClick={stopCamera}>Cancel</Button>
                     <div className="flex gap-2">
-                      <Button variant="secondary" size="icon" className="h-10 w-10 rounded-full" onClick={() => qrGalleryInputRef.current?.click()}>
+                      <Button variant="secondary" size="icon" className="h-10 w-10 rounded-full shadow-xl" onClick={() => qrGalleryInputRef.current?.click()}>
                         <ImageIcon className="h-5 w-5" />
                       </Button>
-                      <Button variant="secondary" size="icon" className="h-10 w-10 rounded-full" onClick={switchCamera}>
+                      <Button variant="secondary" size="icon" className="h-10 w-10 rounded-full shadow-xl" onClick={switchCamera}>
                         <RefreshCw className="h-5 w-5" />
                       </Button>
                     </div>
@@ -430,9 +431,9 @@ export default function VolunteerApp() {
                     <div className="w-20 h-20 rounded-2xl border-2 border-primary bg-slate-800 relative overflow-hidden flex-shrink-0">
                       {isLoadingChild ? <Loader2 className="w-6 h-6 animate-spin" /> : childData?.photoUrl ? <Image src={childData.photoUrl} alt="Target" fill className="object-cover" /> : <UserCircle className="w-full h-full text-slate-600" />}
                     </div>
-                    <div className="flex-1 space-y-1">
+                    <div className="flex-1 space-y-1 overflow-hidden">
                       <p className="text-[10px] font-black text-primary uppercase tracking-widest">ID: {scannedId}</p>
-                      <h3 className="text-2xl font-black uppercase leading-tight">{isLoadingChild ? 'Syncing...' : (childData?.childName || 'Checking Identity...')}</h3>
+                      <h3 className="text-2xl font-black uppercase leading-tight truncate w-full">{isLoadingChild ? 'Syncing...' : (childData?.childName || 'Identity Confirmed')}</h3>
                       {!isLoadingChild && childData && (
                         <div className="flex flex-wrap gap-2 mt-2">
                            <Badge variant="outline" className="text-[9px] border-white/20 text-white">{childData.age} Years Old</Badge>
@@ -445,13 +446,13 @@ export default function VolunteerApp() {
                   {!isLoadingChild && childData && (
                     <div className="grid gap-4 pt-4 border-t border-white/10">
                       <div className="space-y-1">
-                        <p className="text-[10px] font-black uppercase text-primary tracking-widest">Primary Guardian Contact</p>
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-black uppercase">{childData.parentName}</p>
+                        <p className="text-[10px] font-black text-primary uppercase tracking-widest">Primary Guardian Contact</p>
+                        <div className="flex items-center justify-between gap-4 bg-white/5 p-3 rounded-xl border border-white/10">
+                          <div className="overflow-hidden">
+                            <p className="text-sm font-black uppercase truncate">{childData.parentName}</p>
                             <p className="text-xs font-bold text-slate-400">{childData.parentMobileNumber}</p>
                           </div>
-                          <Button size="sm" className="h-10 px-4 font-black uppercase text-[10px] bg-teal-600 hover:bg-teal-700 shadow-lg" asChild>
+                          <Button size="sm" className="h-12 px-6 font-black uppercase text-[10px] bg-teal-600 hover:bg-teal-700 shadow-xl shrink-0" asChild>
                             <a href={`tel:${childData.parentMobileNumber}`}>
                               <PhoneCall className="w-4 h-4 mr-2" /> Call Parent
                             </a>

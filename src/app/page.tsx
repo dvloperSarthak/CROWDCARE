@@ -82,7 +82,6 @@ export default function Home() {
 
   const handleOpenScanner = () => {
     setIsScanningQR(true);
-    // Camera starts via useEffect when dialog opens
   };
 
   useEffect(() => {
@@ -264,7 +263,7 @@ export default function Home() {
                                 type="button"
                                 variant="secondary" 
                                 size="icon" 
-                                className="rounded-full h-12 w-12 opacity-80 hover:opacity-100"
+                                className="rounded-full h-12 w-12 opacity-80 hover:opacity-100 shadow-xl"
                                 onClick={() => galleryInputRef.current?.click()}
                               >
                                 <ImageIcon className="h-6 w-6" />
@@ -273,7 +272,7 @@ export default function Home() {
                                 type="button"
                                 variant="secondary" 
                                 size="icon" 
-                                className="rounded-full h-12 w-12 opacity-80 hover:opacity-100"
+                                className="rounded-full h-12 w-12 opacity-80 hover:opacity-100 shadow-xl"
                                 onClick={switchCamera}
                               >
                                 <RefreshCw className="h-6 w-6" />
@@ -287,8 +286,9 @@ export default function Home() {
                               onChange={handleGalleryUpload} 
                             />
                           </div>
-                          <div className="p-4 bg-slate-900 text-center">
-                            <p className="text-[10px] font-black uppercase text-slate-400">Position the QR or upload from gallery</p>
+                          <div className="p-6 bg-slate-900 flex flex-col gap-4">
+                            <p className="text-[10px] font-black uppercase text-slate-400 text-center">Position QR or upload from gallery</p>
+                            <Button variant="destructive" className="w-full font-black uppercase" onClick={() => setIsScanningQR(false)}>Close Scanner</Button>
                           </div>
                         </DialogContent>
                       </Dialog>
@@ -303,7 +303,7 @@ export default function Home() {
                 <div className="hidden md:block w-[1px] h-16 bg-slate-200 mx-4" />
                 <div className="text-center md:text-left space-y-1">
                    <p className="text-[10px] font-black text-muted-foreground uppercase">Lost an ID?</p>
-                   <p className="text-xs font-medium">Find the nearest Hub for manual verification protocols.</p>
+                   <p className="text-xs font-medium">Find nearest Hub for manual verification.</p>
                 </div>
              </CardContent>
            </Card>
