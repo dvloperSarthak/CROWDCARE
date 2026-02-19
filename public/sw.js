@@ -1,9 +1,4 @@
-
-/**
- * Guardian Tactical Service Worker
- * Handles background notification clicks and basic offline support.
- */
-
+// Guardian Tactical Service Worker
 self.addEventListener('install', function(event) {
   self.skipWaiting();
 });
@@ -12,33 +7,29 @@ self.addEventListener('activate', function(event) {
   event.waitUntil(clients.claim());
 });
 
+/**
+ * Handle Notification Clicks
+ * Redirects the user to the specific tactical page associated with the alert.
+ */
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
-  
-  // When a notification is clicked, open the app or focus the existing tab
+
+  // Extract the destination URL from the notification data
+  const urlToOpen = new URL(event.notification.data?.url || '/', self.location.origin).href;
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
-      if (clientList.length > 0) {
-        return clientList[0].focus();
+      // Check if there is already a window open with this URL
+      for (let i = 0; i < clientList.length; i++) {
+        let client = clientList[i];
+        if (client.url === urlToOpen && 'focus' in client) {
+          return client.focus();
+        }
       }
-      return clients.openWindow('/');
+      // If no window is open, open a new one
+      if (clients.openWindow) {
+        return clients.openWindow(urlToOpen);
+      }
     })
-  );
-});
-
-// Listener for push events (for future cloud messaging integration)
-self.addEventListener('push', function(event) {
-  const data = event.data ? event.data.json() : { title: 'Guardian Alert', body: 'New tactical update received.' };
-  
-  const options = {
-    body: data.body,
-    icon: '/favicon.ico',
-    badge: '/favicon.ico',
-    vibrate: [200, 100, 200],
-    tag: data.tag || 'tactical-alert',
-  };
-
-  event.waitUntil(
-    self.registration.showNotification(data.title, options)
   );
 });

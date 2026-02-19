@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useRef } from 'react';
@@ -9,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 /**
  * TacticalNotificationListener
  * A background listener that triggers browser system notifications for 
- * new broadcasts and critical mission alerts.
+ * new broadcasts and critical mission alerts with click-to-redirect support.
  */
 export function TacticalNotificationListener() {
   const { toast } = useToast();
@@ -32,11 +31,10 @@ export function TacticalNotificationListener() {
   }, [db, user]);
   const { data: alerts } = useCollection(alertQuery);
 
-  const sendSystemNotification = async (title: string, body: string, tag: string) => {
+  const sendSystemNotification = async (title: string, body: string, tag: string, url: string) => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     
     if (Notification.permission === 'granted') {
-      // Use ServiceWorkerRegistration to show notifications to avoid "Illegal constructor" error
       if ('serviceWorker' in navigator) {
         try {
           const registration = await navigator.serviceWorker.ready;
@@ -45,10 +43,10 @@ export function TacticalNotificationListener() {
             icon: 'https://picsum.photos/seed/guardian/192/192',
             tag,
             vibrate: [200, 100, 200],
+            data: { url }, // Pass the redirect URL to the service worker
           });
         } catch (err) {
-          // Fallback if SW fails
-          console.warn('Notification via Service Worker failed', err);
+          console.warn('Tactical Notification Dispatch Failure', err);
         }
       }
     }
@@ -76,7 +74,7 @@ export function TacticalNotificationListener() {
         className: "bg-primary text-white font-black uppercase border-none shadow-2xl",
       });
 
-      sendSystemNotification(title, message, 'broadcast');
+      sendSystemNotification(title, message, 'broadcast', '/');
     }
   }, [broadcasts, toast]);
 
@@ -105,7 +103,8 @@ export function TacticalNotificationListener() {
           description: message,
         });
 
-        sendSystemNotification(title, message, 'alert');
+        // Redirect to Control Room for SITREP review
+        sendSystemNotification(title, message, 'alert', '/control-room');
       }
     }
   }, [alerts, toast]);
