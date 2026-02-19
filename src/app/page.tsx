@@ -1,8 +1,8 @@
 "use client";
 
 import Link from 'next/link';
-import { UserCog, Camera, LayoutDashboard, Fingerprint, UserCircle, ShieldCheck, ShieldAlert, Loader2, Siren, AlertTriangle, QrCode, RefreshCw, Image as ImageIcon, Upload, Camera as CameraIcon } from 'lucide-react';
-import { useAuth, initiateAnonymousSignIn, useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { UserCog, Camera, LayoutDashboard, Fingerprint, UserCircle, ShieldCheck, ShieldAlert, Loader2, Siren, AlertTriangle, QrCode, RefreshCw, Image as ImageIcon, Camera as CameraIcon, Zap } from 'lucide-react';
+import { useAuth, initiateAnonymousSignIn, useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button';
 import { GlowingEffect } from '@/components/ui/glowing-effect';
@@ -83,7 +83,6 @@ export default function Home() {
       const result = event.target?.result as string;
       if (!result) return;
 
-      // Use window.Image to avoid conflict with Next.js Image component
       const img = new window.Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
@@ -235,11 +234,12 @@ export default function Home() {
            </div>
         </div>
 
+        {/* Tactical Shortcuts - Quick Access Roles */}
         <div className="w-full max-w-6xl space-y-8 relative z-10" id="roles">
           <div className="flex flex-col items-center gap-6">
             <div className="flex items-center gap-2 mb-2">
-              <Fingerprint className="w-5 h-5 text-primary" />
-              <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Tactical Role Selection</h2>
+              <Zap className="w-5 h-5 text-primary" />
+              <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Tactical Role Shortcuts</h2>
             </div>
             
             {!user ? (
@@ -259,14 +259,14 @@ export default function Home() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pb-12">
             <RoleCard href="/admin/children" icon={<UserCog className="w-6 h-6" />} title="Guardian Panel" description="Registry & ID Management." />
             <RoleCard href="/volunteer" icon={<CameraIcon className="w-6 h-6" />} title="Volunteer App" description="QR Scanner & Dispatch." />
             <RoleCard href="/control-room" icon={<LayoutDashboard className="w-6 h-6" />} title="Control Room" description="Live Dashboard & Intel." />
           </div>
         </div>
 
-        <div className="w-full max-w-2xl animate-entrance pb-12">
+        <div className="w-full max-w-2xl animate-entrance pb-24">
           <Card className="bg-red-50 border-4 border-red-600 shadow-2xl rounded-[2.5rem] overflow-hidden">
             <div className="bg-red-600 text-white p-6 text-center">
               <h3 className="flex items-center justify-center gap-3 text-3xl font-black uppercase tracking-tighter"><Siren className="w-8 h-8 animate-pulse" /> Emergency Hub</h3>

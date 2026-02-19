@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -356,9 +355,10 @@ export default function VolunteerApp() {
               <video ref={videoRef} className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${isScanning ? 'opacity-100' : 'opacity-0'}`} autoPlay muted playsInline />
               <canvas ref={canvasRef} className="hidden" />
               {isScanning && (
-                <div className="absolute inset-0 pointer-events-none z-10">
-                  <div className="w-full h-1 bg-primary shadow-[0_0_20px_rgba(255,119,51,1)] animate-scan-line absolute" />
-                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-4">
+                <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center">
+                  <div className="w-64 h-64 border-2 border-primary border-dashed rounded-3xl animate-pulse" />
+                  <div className="absolute top-0 w-full h-1 bg-primary shadow-[0_0_20px_rgba(255,119,51,1)] animate-scan-line absolute" />
+                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-4 pointer-events-auto">
                     <Button variant="destructive" className="h-10 px-6 font-black uppercase text-[10px]" onClick={stopCamera}>Cancel</Button>
                     <div className="flex gap-2">
                       <Button variant="secondary" size="icon" className="h-10 w-10 rounded-full shadow-xl" onClick={() => qrGalleryInputRef.current?.click()}>
