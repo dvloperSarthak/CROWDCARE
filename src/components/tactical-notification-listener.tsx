@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useRef } from 'react';
@@ -10,6 +9,8 @@ import { useToast } from '@/hooks/use-toast';
  * TacticalNotificationListener
  * A background listener that triggers browser system notifications for 
  * new broadcasts and critical mission alerts.
+ * 
+ * Works when the app is in foreground and simulates background alerts via sw.js.
  */
 export function TacticalNotificationListener() {
   const { toast } = useToast();
@@ -32,33 +33,23 @@ export function TacticalNotificationListener() {
   }, [db, user]);
   const { data: alerts } = useCollection(alertQuery);
 
-  // Request Notification Permission on mount
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      if (Notification.permission === 'default') {
-        Notification.requestPermission();
-      }
-    }
-  }, []);
-
   const sendSystemNotification = (title: string, body: string, tag: string) => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     
     if (Notification.permission === 'granted') {
-      // If document is hidden or backgrounded, use Service Worker if possible
-      if (document.visibilityState === 'hidden') {
-        navigator.serviceWorker.ready.then((registration) => {
-          registration.showNotification(title, {
-            body,
-            tag,
-            icon: 'https://picsum.photos/seed/guardian/192/192',
-            badge: 'https://picsum.photos/seed/badge/96/96',
-            renotify: true,
-          });
+      // If document is backgrounded, send to Service Worker for background handling
+      if (document.visibilityState === 'hidden' && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SHOW_TACTICAL_ALERT',
+          payload: { title, body, tag }
         });
       } else {
         // Foreground system notification
-        new Notification(title, { body, icon: 'https://picsum.photos/seed/guardian/192/192' });
+        new Notification(title, { 
+          body, 
+          icon: 'https://picsum.photos/seed/guardian/192/192',
+          tag 
+        });
       }
     }
   };
@@ -104,8 +95,10 @@ export function TacticalNotificationListener() {
       lastAlertIdRef.current = latest.id;
       
       // Notify about high-priority SOS or new missions
-      if (latest.status === 'SOS' || latest.status === 'Scanned') {
-        const title = latest.status === 'SOS' ? "URGENT SOS SIGNAL" : "NEW MISSION DISPATCH";
+      if (latest.status === 'SOS' || latest.status === 'Scanned' || latest.status === 'Child Reunited') {
+        const title = latest.status === 'SOS' ? "URGENT SOS SIGNAL" : 
+                      latest.status === 'Child Reunited' ? "MISSION RESOLVED" : "NEW MISSION DISPATCH";
+        
         const message = `Incident ${latest.id}: Status updated to ${latest.status}`;
 
         toast({

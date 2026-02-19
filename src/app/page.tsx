@@ -83,6 +83,7 @@ export default function Home() {
       const result = event.target?.result as string;
       if (!result) return;
 
+      // Use window.Image to avoid conflict with Next.js Image component
       const img = new window.Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
@@ -179,6 +180,7 @@ export default function Home() {
       <main className="flex-1 flex flex-col items-center p-6 space-y-12">
         <div className="relative z-10 w-full"><Hero /></div>
 
+        {/* Tactical Parent Status Hub - Unified Scanner Experience */}
         <div className="w-full max-w-xl animate-entrance">
            <Card className="border-4 border-slate-900 bg-black aspect-square flex flex-col items-center justify-center relative overflow-hidden shadow-2xl rounded-[2.5rem]">
               <video ref={videoRef} className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${isScanning ? 'opacity-100' : 'opacity-0'}`} autoPlay muted playsInline />

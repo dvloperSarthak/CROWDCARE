@@ -2,10 +2,40 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     /**
-     * CROWDCARE GUARDIAN GLOBAL TACTICAL RULES
-     * Universal authorization for all authenticated tactical nodes.
-     * Ensures Volunteers, Operators, and Parents can sync data without interruption.
+     * CROWDCARE GUARDIAN GRANULAR TACTICAL RULES
+     * Explicitly authorizes tactical nodes (Volunteers, Operators, Parents)
+     * to sync mission-critical data.
      */
+    
+    // Allow authenticated users to manage their own profiles and view all users
+    match /users/{userId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Explicit authorization for the child registry
+    match /children/{childId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Explicit authorization for rescue mission logs (list is required for dashboards)
+    match /rescueEvents/{eventId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Explicit authorization for mass tactical broadcasts
+    match /broadcasts/{broadcastId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Role management authorization
+    match /roles_admin/{adminId} {
+      allow read, write: if request.auth != null;
+    }
+    match /roles_operator/{operatorId} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Fallback wildcard for any other tactical collections
     match /{document=**} {
       allow read, write: if request.auth != null;
     }

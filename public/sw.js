@@ -1,7 +1,6 @@
-
-/*
- * GUARDIAN SERVICE WORKER
- * Handles background tactical notifications and push events.
+/**
+ * CrowdCare Guardian Service Worker
+ * Handles background notifications and persistent tactical alerts.
  */
 
 self.addEventListener('install', (event) => {
@@ -14,38 +13,35 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  
+  // Bring the app to the foreground when a notification is clicked
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      if (clientList.length > 0) {
-        let client = clientList[0];
-        for (let i = 0; i < clientList.length; i++) {
-          if (clientList[i].focused) {
-            client = clientList[i];
-          }
+    clients.matchAll({ type: 'window' }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url === '/' && 'focus' in client) {
+          return client.focus();
         }
-        return client.focus();
       }
-      return self.clients.openWindow('/');
+      if (clients.openWindow) {
+        return clients.openWindow('/');
+      }
     })
   );
 });
 
-self.addEventListener('push', (event) => {
-  const data = event.data ? event.data.json() : { 
-    title: 'Guardian Tactical Alert', 
-    body: 'New mission intelligence received.' 
-  };
-  
-  const options = {
-    body: data.body,
-    icon: 'https://picsum.photos/seed/guardian/192/192',
-    badge: 'https://picsum.photos/seed/badge/96/96',
-    tag: data.tag || 'tactical-alert',
-    renotify: true,
-    data: { url: data.url || '/' }
-  };
-
-  event.waitUntil(
-    self.registration.showNotification(data.title, options)
-  );
+// Listener for background messages (simulated push or app-triggered)
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SHOW_TACTICAL_ALERT') {
+    const { title, body, tag } = event.data.payload;
+    
+    self.registration.showNotification(title, {
+      body,
+      tag,
+      icon: 'https://picsum.photos/seed/guardian/192/192',
+      badge: 'https://picsum.photos/seed/badge/96/96',
+      vibrate: [200, 100, 200],
+      renotify: true,
+      requireInteraction: true,
+    });
+  }
 });

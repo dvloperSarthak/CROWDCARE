@@ -1,4 +1,3 @@
-
 import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
@@ -33,11 +32,16 @@ export default function RootLayout({
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js').then(function(registration) {
-                    console.log('Guardian Service Worker registered');
+                    console.log('Guardian Tactical Service Worker registered');
                   }, function(err) {
                     console.log('Guardian Service Worker registration failed: ', err);
                   });
                 });
+              }
+              
+              // Request notification permission globally
+              if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
               }
             `,
           }}
