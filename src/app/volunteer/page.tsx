@@ -95,7 +95,6 @@ export default function VolunteerApp() {
   }, [db, user]);
   const { data: pastMissions } = useCollection(missionsRef);
 
-  // Defer registry query until user is authenticated
   const childrenRef = useMemoFirebase(() => (db && user) ? collection(db, 'children') : null, [db, user]);
   const { data: allChildren } = useCollection(childrenRef);
 
@@ -432,7 +431,7 @@ export default function VolunteerApp() {
                     </div>
                     <div className="flex-1 space-y-1">
                       <p className="text-[10px] font-black text-primary uppercase tracking-widest">Guardian ID: {scannedId}</p>
-                      <h3 className="text-2xl font-black uppercase leading-tight">{isLoadingChild ? 'Syncing...' : (childData?.childName || 'Identity Confirmed')}</h3>
+                      <h3 className="text-2xl font-black uppercase tracking-tighter">{isLoadingChild ? 'Syncing...' : (childData?.childName || 'Identity Confirmed')}</h3>
                       {!isLoadingChild && childData && (
                         <div className="flex flex-wrap gap-2 mt-2">
                            <Badge variant="outline" className="text-[9px] border-white/20 text-white">{childData.age} Years Old</Badge>
@@ -446,16 +445,24 @@ export default function VolunteerApp() {
                     <div className="grid gap-4 pt-4 border-t border-white/10">
                       <div className="space-y-1">
                         <p className="text-[10px] font-black text-primary uppercase tracking-widest">Guardian Contact Info</p>
-                        <div className="flex items-center justify-between gap-4 bg-white/5 p-3 rounded-xl border border-white/10">
-                          <div>
-                            <p className="text-sm font-black uppercase">{childData.parentName}</p>
-                            <p className="text-xs font-bold text-slate-400">{childData.parentMobileNumber}</p>
+                        <div className="flex flex-col gap-3 bg-white/5 p-4 rounded-xl border border-white/10">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-black uppercase">{childData.parentName}</p>
+                              <p className="text-xs font-bold text-slate-400">{childData.parentMobileNumber}</p>
+                            </div>
+                            <Button size="sm" className="h-12 px-6 font-black uppercase text-[10px] bg-teal-600 hover:bg-teal-700 shadow-xl shrink-0" asChild>
+                              <a href={`tel:${childData.parentMobileNumber}`}>
+                                <PhoneCall className="w-4 h-4 mr-2" /> Call Parent
+                              </a>
+                            </Button>
                           </div>
-                          <Button size="sm" className="h-12 px-6 font-black uppercase text-[10px] bg-teal-600 hover:bg-teal-700 shadow-xl shrink-0" asChild>
-                            <a href={`tel:${childData.parentMobileNumber}`}>
-                              <PhoneCall className="w-4 h-4 mr-2" /> Call Parent
-                            </a>
-                          </Button>
+                          {childData.emergencyContactNumber && (
+                             <div className="pt-2 border-t border-white/5">
+                                <p className="text-[8px] font-black uppercase text-slate-500">Emergency Contact</p>
+                                <p className="text-xs font-bold text-slate-300">{childData.emergencyContactNumber}</p>
+                             </div>
+                          )}
                         </div>
                       </div>
 
@@ -509,7 +516,7 @@ export default function VolunteerApp() {
                 <Button onClick={toggleCrowdAlarm} variant={isAlarmActive ? "destructive" : "outline"} className={cn("w-full h-14 rounded-2xl font-black uppercase", isAlarmActive && "animate-pulse")}>
                    <Volume2 className="w-5 h-5 mr-3" /> {isAlarmActive ? "Disable Signal" : "Active Crowd Signal"}
                 </Button>
-                <Button onClick={() => { setIsSent(false); setScannedId(''); setManualDescription(''); }} variant="ghost" className="text-muted-foreground font-black uppercase text-[10px]">Close & Reset</Button>
+                <Button onClick={() => { setIsSent(false); setScannedId(''); setManualDescription(''); setStatusPreview(null); setStatusFile(null); }} variant="ghost" className="text-muted-foreground font-black uppercase text-[10px]">Close & Reset</Button>
               </div>
             </Card>
           </div>

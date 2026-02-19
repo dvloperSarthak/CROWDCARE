@@ -3,46 +3,48 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * CROWDCARE GUARDIAN TACTICAL RULES v5.0
-     * Globally authorizes all authenticated users (Staff, Volunteers, and Guests)
-     * for full tactical operations across all collections.
-     * This ensures that any person acting as a volunteer or parent can access
-     * real-time safety data without permission interruptions.
+     * CROWDCARE GUARDIAN TACTICAL RULES v6.0
+     * Explicitly authorizes all authenticated users (Staff, Volunteers, and Guests)
+     * for full tactical operations. This ensures that field teams can access
+     * real-time safety data and list mission logs without interruption.
      */
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Explicit permissions for all tactical collections to resolve 'list' and 'get' errors
+    // Explicitly allow list, get, create, and update for all tactical collections
     match /children/{childId} {
-      allow read, write: if isSignedIn();
+      allow list, get, create, update: if isSignedIn();
+      allow delete: if isSignedIn(); // Administrative fallback
     }
 
     match /rescueEvents/{eventId} {
-      allow read, write: if isSignedIn();
-      match /notificationLogs/{logId} {
-        allow read, write: if isSignedIn();
+      allow list, get, create, update: if isSignedIn();
+      allow delete: if isSignedIn();
+      
+      match /{allSubcollections=**} {
+        allow list, get, create, update, delete: if isSignedIn();
       }
     }
 
     match /broadcasts/{broadcastId} {
-      allow read, write: if isSignedIn();
+      allow list, get, create, update: if isSignedIn();
     }
 
     match /users/{userId} {
-      allow read, write: if isSignedIn();
+      allow list, get, create, update: if isSignedIn();
     }
 
     match /roles_admin/{userId} {
-      allow read, write: if isSignedIn();
+      allow list, get, create, update: if isSignedIn();
     }
 
     match /roles_operator/{userId} {
-      allow read, write: if isSignedIn();
+      allow list, get, create, update: if isSignedIn();
     }
 
-    // Global Fallback for recursive operations and nested structures
+    // Global Fallback to catch any nested or recursive queries
     match /{document=**} {
       allow read, write: if isSignedIn();
     }
