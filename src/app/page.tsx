@@ -40,19 +40,6 @@ export default function Home() {
   const requestRef = useRef<number>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
-  // Role verification
-  const adminRoleRef = useMemoFirebase(() => user ? doc(db, 'roles_admin', user.uid) : null, [db, user]);
-  const operatorRoleRef = useMemoFirebase(() => user ? doc(db, 'roles_operator', user.uid) : null, [db, user]);
-  
-  const { data: adminRole, isLoading: loadingAdmin } = useDoc(adminRoleRef);
-  const { data: operatorRole, isLoading: loadingOperator } = useDoc(operatorRoleRef);
-
-  const isEmailUser = user && !user.isAnonymous;
-  const isAdmin = !!adminRole || isEmailUser; 
-  const isOperator = !!operatorRole || isEmailUser;
-  const isGuardian = isAdmin || isOperator;
-  const isLoadingRoles = (loadingAdmin || loadingOperator) && !isEmailUser;
-
   const startScanning = async (mode: 'user' | 'environment' = facingMode) => {
     setIsScanning(true);
     if (videoRef.current?.srcObject) {
@@ -140,12 +127,6 @@ export default function Home() {
       }
     }
     requestRef.current = requestAnimationFrame(tick);
-  };
-
-  const handleGuestAccess = () => {
-    if (auth && !user) {
-      initiateAnonymousSignIn(auth);
-    }
   };
 
   const triggerGlobalSOS = async () => {
@@ -259,36 +240,27 @@ export default function Home() {
               <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Tactical Role Selection</h2>
             </div>
             
-            {isLoadingRoles ? (
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            ) : user ? (
-              <div className="flex flex-col items-center gap-4 animate-entrance">
-                <div className="bg-white border-2 border-primary/20 rounded-full px-6 py-3 flex items-center gap-3 shadow-xl">
-                  {isGuardian ? <ShieldCheck className="w-6 h-6 text-teal-600" /> : <UserCircle className="w-6 h-6 text-primary" />}
-                  <div className="flex flex-col">
-                    <span className="font-black text-xs uppercase tracking-widest text-slate-900 mb-1">{isGuardian ? 'Verified Guardian' : 'Guest Volunteer'}</span>
-                    <span className="text-[10px] font-bold text-muted-foreground truncate max-w-[200px]">{user.email || 'Anonymous ID: ' + user.uid.slice(0, 8)}</span>
-                  </div>
-                </div>
-                {(!isGuardian || user.isAnonymous) && (
-                  <Button variant="outline" className="gap-2 h-10 px-6 font-bold border-primary text-primary" asChild>
-                    <Link href="/login"><ShieldAlert className="w-4 h-4" /> Guardian Auth</Link>
-                  </Button>
-                )}
-              </div>
-            ) : (
+            {!user ? (
               <InteractiveHoverButton 
                 text="Guardian Login" 
                 className="h-14 w-64"
                 onClick={() => window.location.href = "/login"}
               />
+            ) : (
+              <div className="bg-white border-2 border-primary/20 rounded-full px-6 py-3 flex items-center gap-3 shadow-xl animate-entrance">
+                <ShieldCheck className="w-6 h-6 text-teal-600" />
+                <div className="flex flex-col">
+                  <span className="font-black text-xs uppercase tracking-widest text-slate-900 mb-1">Authenticated</span>
+                  <span className="text-[10px] font-bold text-muted-foreground truncate max-w-[200px]">{user.email || 'Guest ID: ' + user.uid.slice(0, 8)}</span>
+                </div>
+              </div>
             )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <RoleCard href="/admin/children" icon={<UserCog className="w-6 h-6" />} title="Guardian Panel" description="Registry & ID Management." isRestricted={!isAdmin} isLoading={isLoadingRoles} subtext={!isAdmin ? "Auth Required" : "Mode Active"} />
-            <RoleCard href="/volunteer" icon={<CameraIcon className="w-6 h-6" />} title="Volunteer App" description="QR Scanner & Dispatch." onClick={handleGuestAccess} subtext="Public Access" />
-            <RoleCard href="/control-room" icon={<LayoutDashboard className="w-6 h-6" />} title="Control Room" description="Live Dashboard & Intel." isRestricted={!isOperator && !isAdmin} isLoading={isLoadingRoles} subtext={!isOperator && !isAdmin ? "Auth Required" : "Dashboard Active"} />
+            <RoleCard href="/admin/children" icon={<UserCog className="w-6 h-6" />} title="Guardian Panel" description="Registry & ID Management." />
+            <RoleCard href="/volunteer" icon={<CameraIcon className="w-6 h-6" />} title="Volunteer App" description="QR Scanner & Dispatch." />
+            <RoleCard href="/control-room" icon={<LayoutDashboard className="w-6 h-6" />} title="Control Room" description="Live Dashboard & Intel." />
           </div>
         </div>
 
@@ -322,20 +294,19 @@ export default function Home() {
   );
 }
 
-function RoleCard({ href, icon, title, description, isRestricted = false, isLoading = false, subtext, onClick }: { href: string; icon: React.ReactNode; title: string; description: string; isRestricted?: boolean; isLoading?: boolean; subtext?: string; onClick?: () => void; }) {
+function RoleCard({ href, icon, title, description }: { href: string; icon: React.ReactNode; title: string; description: string; }) {
   return (
     <div className="relative group h-full">
       <div className="relative h-full rounded-[1.25rem] border p-2 transition-all">
         <GlowingEffect spread={40} glow={true} disabled={false} proximity={64} inactiveZone={0.01} borderWidth={3} />
-        <Link href={isRestricted || isLoading ? "#" : href} onClick={isRestricted || isLoading ? undefined : onClick} className={cn("relative flex h-full flex-col justify-between overflow-hidden rounded-xl border bg-background p-6 shadow-sm transition-all group-hover:bg-slate-50/50", (isRestricted || isLoading) && "opacity-60 grayscale cursor-not-allowed")}>
+        <Link href={href} className="relative flex h-full flex-col justify-between overflow-hidden rounded-xl border bg-background p-6 shadow-sm transition-all group-hover:bg-slate-50/50">
           <div className="space-y-4">
-            <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center group-hover:bg-primary/10 group-hover:text-primary">{isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : icon}</div>
+            <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center group-hover:bg-primary/10 group-hover:text-primary transition-colors">{icon}</div>
             <div className="space-y-1">
               <h3 className="text-2xl font-black tracking-tight uppercase">{title}</h3>
               <p className="text-muted-foreground font-medium text-sm">{description}</p>
             </div>
           </div>
-          {subtext && <div className="mt-4 pt-4 border-t border-dashed"><p className={cn("text-[9px] font-black tracking-widest uppercase flex items-center gap-2", isRestricted ? "text-destructive" : "text-teal-600")}>{subtext}</p></div>}
         </Link>
       </div>
     </div>

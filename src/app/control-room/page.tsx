@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -16,7 +15,6 @@ import { detectDuplicateRescueAlert } from '@/ai/flows/duplicate-rescue-detectio
 import { useFirestore, useCollection, useMemoFirebase, updateDocumentNonBlocking, useUser, setDocumentNonBlocking, addDocumentNonBlocking } from '@/firebase';
 import { collection, doc, query, orderBy } from 'firebase/firestore';
 import Image from 'next/image';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { cn } from '@/lib/utils';
 
 const TacticalMap = dynamic(() => import('@/components/tactical-map'), { 
@@ -27,17 +25,16 @@ const TacticalMap = dynamic(() => import('@/components/tactical-map'), {
 export default function ControlRoom() {
   const { toast } = useToast();
   const db = useFirestore();
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const [passcode, setPasscode] = useState('');
   const [isAuthorized, setIsAuthorized] = useState(false);
-  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
   const [mapCenter, setMapCenter] = useState<[number, number]>([0, 0]);
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [isBroadcasting, setIsBroadcasting] = useState(false);
 
   const alertsRef = useMemoFirebase(() => user && isAuthorized ? collection(db, 'rescueEvents') : null, [db, user, isAuthorized]);
-  const { data: alerts, isLoading: loadingAlerts } = useCollection(alertsRef);
+  const { data: alerts } = useCollection(alertsRef);
   
   const childrenRef = useMemoFirebase(() => user && isAuthorized ? collection(db, 'children') : null, [db, user, isAuthorized]);
   const { data: children } = useCollection(childrenRef);
@@ -59,23 +56,9 @@ export default function ControlRoom() {
       timestamp: new Date().toISOString()
     }, { merge: true });
 
-    toast({ title: "Broadcast Disseminated", description: "Global alert synced to all field terminals." });
+    toast({ title: "Broadcast Disseminated", description: "Global tactical alert pushed to all field terminals." });
     setBroadcastMsg('');
     setIsBroadcasting(false);
-  };
-
-  const exportTacticalData = () => {
-    if (!alerts) return;
-    const headers = ["AlertID", "ChildID", "Status", "Latitude", "Longitude", "Time", "Notes"];
-    const rows = alerts.map(a => [a.id, a.childId, a.status, a.locationLatitude, a.locationLongitude, a.scanTime, (a.notes || '').replace(/,/g, ';')]);
-    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `SITREP_EXPORT_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    toast({ title: "Export Complete", description: "Tactical incident log downloaded." });
   };
 
   const stats = useMemo(() => {
@@ -129,11 +112,19 @@ export default function ControlRoom() {
             <div><p className="text-[10px] font-black text-muted-foreground uppercase">SOS Emergencies</p><h3 className="text-4xl font-black text-red-600">{stats.sos}</h3></div>
             <Siren className="w-8 h-8 text-red-600" />
           </Card>
-          <Card className="bg-slate-900 text-white p-4 space-y-3">
+          <Card className="bg-slate-900 text-white p-4 space-y-3 shadow-xl">
              <p className="text-[10px] font-black text-primary uppercase flex items-center gap-2"><Megaphone className="w-3 h-3" /> Mass Broadcast</p>
              <div className="flex gap-2">
-                <Input placeholder="Message volunteers..." className="h-8 text-[10px] bg-slate-800 border-none text-white" value={broadcastMsg} onChange={e => setBroadcastMsg(e.target.value)} />
-                <Button size="icon" className="h-8 w-8 bg-primary" onClick={handleBroadcast} disabled={isBroadcasting}><Send className="w-3 h-3" /></Button>
+                <Input 
+                  placeholder="Message volunteers..." 
+                  className="h-8 text-[10px] bg-slate-800 border-none text-white" 
+                  value={broadcastMsg} 
+                  onChange={e => setBroadcastMsg(e.target.value)} 
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleBroadcast(); }}
+                />
+                <Button size="icon" className="h-8 w-8 bg-primary hover:bg-primary/90" onClick={handleBroadcast} disabled={isBroadcasting}>
+                  {isBroadcasting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                </Button>
              </div>
           </Card>
         </div>
@@ -147,7 +138,9 @@ export default function ControlRoom() {
                <Table>
                  <TableHeader><TableRow className="bg-slate-50"><TableHead className="font-black text-[10px] uppercase">Incident ID</TableHead><TableHead className="font-black text-[10px] uppercase">Status</TableHead><TableHead className="text-right font-black text-[10px] uppercase">Ops</TableHead></TableRow></TableHeader>
                  <TableBody>
-                   {alerts?.map(alert => (
+                   {alerts?.length === 0 ? (
+                     <TableRow><TableCell colSpan={3} className="text-center py-10 text-muted-foreground font-black uppercase text-[10px]">No active signals</TableCell></TableRow>
+                   ) : alerts?.map(alert => (
                      <TableRow key={alert.id} className={cn(selectedAlertId === alert.id && "bg-primary/10", alert.status === 'SOS' && "bg-red-50")}>
                         <TableCell className="font-black">{alert.id} ({alert.childId})</TableCell>
                         <TableCell><Badge variant={alert.status === 'SOS' ? "destructive" : "default"} className="text-[9px] font-black uppercase">{alert.status}</Badge></TableCell>
@@ -175,27 +168,24 @@ export default function ControlRoom() {
                            {relatedChild?.photoUrl ? <Image src={relatedChild.photoUrl} alt="Subject" fill className="object-cover" /> : <User className="w-full h-full text-slate-200" />}
                         </div>
                         <div className="space-y-1">
-                           <p className="text-[10px] font-black text-primary uppercase">{relatedChild?.childName || 'Unregistered'}</p>
+                           <p className="text-lg font-black text-slate-900 uppercase leading-none">{relatedChild?.childName || 'Unregistered'}</p>
                            <p className="text-xs font-bold text-slate-500">{relatedChild?.age || '?'} Years Old</p>
-                           {relatedChild?.medicalRequirements && relatedChild.medicalRequirements !== 'None' && (
-                             <div className="mt-2 text-[9px] font-black uppercase text-red-600 animate-pulse flex items-center gap-1"><Activity className="w-3 h-3" /> Medical Alert</div>
-                           )}
                         </div>
                      </div>
 
-                     {relatedChild?.physicalDescription && (
-                       <div className="bg-slate-50 border p-3 rounded-xl text-[10px] font-medium text-slate-600">
-                          <p className="font-black uppercase text-[8px] text-primary mb-1">Physical Profile:</p>
-                          {relatedChild.physicalDescription}
-                       </div>
-                     )}
+                     <div className="space-y-4">
+                        <div className="bg-slate-50 border p-3 rounded-xl text-[10px] font-medium text-slate-600">
+                           <p className="font-black uppercase text-[8px] text-primary mb-1 tracking-widest">Physical Profile:</p>
+                           {relatedChild?.physicalDescription || "No physical description available."}
+                        </div>
 
-                     {relatedChild?.medicalRequirements && relatedChild.medicalRequirements !== 'None' && (
-                       <div className="bg-red-50 border border-red-200 p-3 rounded-xl text-[10px] font-medium text-red-900">
-                          <p className="font-black uppercase mb-1">Medical Briefing:</p>
-                          {relatedChild.medicalRequirements}
-                       </div>
-                     )}
+                        {relatedChild?.medicalRequirements && relatedChild.medicalRequirements !== 'None' && (
+                          <div className="bg-red-50 border border-red-200 p-3 rounded-xl text-[10px] font-medium text-red-900 animate-pulse">
+                             <p className="font-black uppercase mb-1 flex items-center gap-1"><Activity className="w-3 h-3" /> Medical Briefing:</p>
+                             {relatedChild.medicalRequirements}
+                          </div>
+                        )}
+                     </div>
 
                      {selectedAlert.statusPhotoUrl && (
                        <div className="space-y-2">
@@ -215,16 +205,13 @@ export default function ControlRoom() {
                      </div>
 
                      <div className="space-y-3 pt-4 border-t">
-                        <Button className="w-full h-12 font-black uppercase bg-teal-600 hover:bg-teal-700" disabled={selectedAlert.status !== 'Scanned'} onClick={() => {
-                          const logId = `LOG-${Date.now()}`;
-                          const logRef = doc(db, 'rescueEvents', selectedAlert.id, 'notificationLogs', logId);
-                          setDocumentNonBlocking(logRef, { id: logId, rescueEventId: selectedAlert.id, recipientMobileNumber: relatedChild?.parentMobileNumber || 'N/A', notificationType: 'Tactical Alert', messageBody: `Guardian Alert: ${relatedChild?.childName || 'Your child'} located. Proceed to nearest hub.`, sentTime: new Date().toISOString(), deliveryStatus: 'Delivered' }, { merge: true });
+                        <Button className="w-full h-12 font-black uppercase bg-teal-600 hover:bg-teal-700" disabled={selectedAlert.status !== 'Scanned' && selectedAlert.status !== 'SOS'} onClick={() => {
                           updateDocumentNonBlocking(doc(db, 'rescueEvents', selectedAlert.id), { status: 'Parent Notified' });
-                          toast({ title: "Dispatch Complete" });
+                          toast({ title: "Notification Dispatched", description: "Protocol updated to 'Parent Notified'." });
                         }}>Notify Parent</Button>
                         <Button variant="outline" className="w-full h-12 font-black uppercase border-slate-900" onClick={() => {
                           updateDocumentNonBlocking(doc(db, 'rescueEvents', selectedAlert.id), { status: 'Child Reunited', resolvedTime: new Date().toISOString() });
-                          toast({ title: "Mission Resolved" });
+                          toast({ title: "Mission Resolved", description: "Event marked as cleared." });
                           setSelectedAlertId(null);
                         }}>Mission Clear</Button>
                      </div>
