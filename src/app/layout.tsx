@@ -1,3 +1,4 @@
+
 import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
@@ -47,10 +48,19 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="font-body antialiased bg-background">
+      <body className="font-body antialiased bg-background min-h-screen flex flex-col">
         <FirebaseClientProvider>
           <TacticalNotificationListener />
-          {children}
+          <div className="flex-1 flex flex-col">
+            {children}
+          </div>
+          <footer className="w-full py-8 px-4 border-t bg-white mt-auto">
+            <div className="container mx-auto text-center">
+              <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">
+                Made By Electronics And Telecom. Students (GPN)
+              </p>
+            </div>
+          </footer>
           <Toaster />
         </FirebaseClientProvider>
       </body>

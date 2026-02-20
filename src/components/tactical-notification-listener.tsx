@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useRef } from 'react';
@@ -35,16 +36,16 @@ export function TacticalNotificationListener() {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     
     if (Notification.permission === 'granted') {
+      // Use ServiceWorkerRegistration to avoid Illegal Constructor error in modern browsers
       if ('serviceWorker' in navigator) {
         try {
           const registration = await navigator.serviceWorker.ready;
-          // IMPORTANT: Use ServiceWorkerRegistration to avoid constructor errors in foreground
           registration.showNotification(title, {
             body,
             icon: 'https://picsum.photos/seed/guardian/192/192',
             tag,
             vibrate: [200, 100, 200],
-            data: { url }, // Pass the redirect URL to the service worker
+            data: { url }, // Pass the redirect URL to the service worker for 'notificationclick'
           });
         } catch (err) {
           console.warn('Tactical Notification Dispatch Failure', err);
@@ -104,7 +105,7 @@ export function TacticalNotificationListener() {
           description: message,
         });
 
-        // Redirect to Control Room for SITREP review
+        // Redirect to Control Room for SITREP review on notification click
         sendSystemNotification(title, message, 'alert', '/control-room');
       }
     }

@@ -1,13 +1,14 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // Universal tactical authorization for all authenticated nodes.
-    // This resolves 'list' and 'get' permission issues for active operations.
+    // This provides robust access for field volunteers, parents, and operators.
     match /{document=**} {
       allow read, write: if request.auth != null;
     }
     
-    // Explicit collection access to ensure list operations are permitted
+    // Explicit permission structure for critical collections
     match /rescueEvents/{alertId} {
       allow list, get, create, update: if request.auth != null;
     }
@@ -18,6 +19,10 @@ service cloud.firestore {
     
     match /broadcasts/{broadcastId} {
       allow list, get, create: if request.auth != null;
+    }
+
+    match /users/{userId} {
+      allow get, list, create, update: if request.auth != null;
     }
   }
 }
