@@ -8,8 +8,9 @@ import { InteractiveHoverButton } from '@/components/ui/interactive-hover-button
 import { GlowingEffect } from '@/components/ui/glowing-effect';
 import { Hero } from '@/components/ui/animated-hero';
 import { NavBar } from '@/components/nav-bar';
+import { SplashScreen } from '@/components/splash-screen';
 import { doc, setDoc } from 'firebase/firestore';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -23,7 +24,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent } from '@/components/ui/card';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function Home() {
   const auth = useAuth();
@@ -31,6 +32,20 @@ export default function Home() {
   const db = useFirestore();
   const { toast } = useToast();
   const [isSOSLoading, setIsSOSLoading] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+
+  // Check if splash has already been shown in this session
+  useEffect(() => {
+    const hasSeenSplash = sessionStorage.getItem('guardian_splash_seen');
+    if (hasSeenSplash) {
+      setShowSplash(false);
+    }
+  }, []);
+
+  const handleSplashComplete = () => {
+    setShowSplash(false);
+    sessionStorage.setItem('guardian_splash_seen', 'true');
+  };
 
   const triggerGlobalSOS = async () => {
     setIsSOSLoading(true);
@@ -77,91 +92,97 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 overflow-x-hidden">
-      <NavBar title="CrowdCare Guardian" />
-      <main className="flex-1 flex flex-col items-center p-4 md:p-6 space-y-12">
-        <div className="relative z-10 w-full"><Hero /></div>
+    <>
+      <AnimatePresence>
+        {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
+      </AnimatePresence>
 
-        {/* Tactical Shortcuts - Responsive Grid */}
-        <div className="w-full max-w-6xl space-y-12 relative z-10" id="roles">
-          <div className="flex flex-col items-center gap-6">
-            <div className="flex items-center gap-2 mb-2">
-              <Zap className="w-5 h-5 text-primary" />
-              <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Tactical Launchpad</h2>
-            </div>
+      <div className="min-h-screen flex flex-col bg-slate-50 overflow-x-hidden">
+        <NavBar title="CrowdCare Guardian" />
+        <main className="flex-1 flex flex-col items-center p-4 md:p-6 space-y-12">
+          <div className="relative z-10 w-full"><Hero /></div>
 
-            <div className="flex flex-col lg:flex-row gap-8 w-full justify-center items-center">
-              {/* 1:1 SCAN AN ID SHORTCUT */}
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => window.location.href = "/volunteer"}
-                className="aspect-square w-full max-w-[280px] md:w-64 md:h-64 bg-slate-900 text-white rounded-[2.5rem] border-b-8 border-slate-950 shadow-2xl flex flex-col items-center justify-center gap-6 group transition-all"
-              >
-                <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center border-2 border-primary group-hover:bg-primary group-hover:text-white transition-colors">
-                  <ScanLine className="w-10 h-10" />
-                </div>
-                <div className="text-center px-4">
-                  <span className="block text-3xl font-black uppercase tracking-widest leading-none mb-2">SCAN AN ID</span>
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 group-hover:text-primary transition-colors">Volunteer Terminal</span>
-                </div>
-              </motion.button>
+          {/* Tactical Shortcuts */}
+          <div className="w-full max-w-6xl space-y-12 relative z-10" id="roles">
+            <div className="flex flex-col items-center gap-6">
+              <div className="flex items-center gap-2 mb-2">
+                <Zap className="w-5 h-5 text-primary" />
+                <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Tactical Launchpad</h2>
+              </div>
 
-              <div className="flex flex-col gap-4 w-full max-w-[280px] md:w-80">
-                {!user ? (
-                  <InteractiveHoverButton 
-                    text="Guardian Login" 
-                    className="h-20 w-full text-xl font-black uppercase tracking-widest"
-                    onClick={() => window.location.href = "/login"}
-                  />
-                ) : (
-                  <div className="bg-white border-4 border-primary/20 rounded-3xl px-8 py-4 flex items-center gap-4 shadow-xl animate-entrance h-20 w-full">
-                    <ShieldCheck className="w-8 h-8 text-teal-600" />
-                    <div className="flex flex-col">
-                      <span className="font-black text-[10px] uppercase tracking-widest text-slate-400 mb-1">Authenticated</span>
-                      <span className="text-xs font-black text-slate-900 truncate max-w-[150px]">{user.email || 'Tactical Guest'}</span>
-                    </div>
+              <div className="flex flex-col lg:flex-row gap-8 w-full justify-center items-center">
+                {/* 1:1 SCAN AN ID SHORTCUT */}
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => window.location.href = "/volunteer"}
+                  className="aspect-square w-full max-w-[280px] md:w-64 md:h-64 bg-slate-900 text-white rounded-[2.5rem] border-b-8 border-slate-950 shadow-2xl flex flex-col items-center justify-center gap-6 group transition-all"
+                >
+                  <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center border-2 border-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                    <ScanLine className="w-10 h-10 text-primary group-hover:text-white transition-colors" />
                   </div>
-                )}
-                <RoleCard href="/control-room" icon={<LayoutDashboard className="w-6 h-6" />} title="Control Room" description="Live Dashboard & Intel." />
+                  <div className="text-center px-4">
+                    <span className="block text-3xl font-black uppercase tracking-widest leading-none mb-2">SCAN AN ID</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 group-hover:text-primary transition-colors">Volunteer Terminal</span>
+                  </div>
+                </motion.button>
+
+                <div className="flex flex-col gap-4 w-full max-w-[280px] md:w-80">
+                  {!user ? (
+                    <InteractiveHoverButton 
+                      text="Guardian Login" 
+                      className="h-20 w-full text-xl font-black uppercase tracking-widest"
+                      onClick={() => window.location.href = "/login"}
+                    />
+                  ) : (
+                    <div className="bg-white border-4 border-primary/20 rounded-3xl px-8 py-4 flex items-center gap-4 shadow-xl animate-entrance h-20 w-full">
+                      <ShieldCheck className="w-8 h-8 text-teal-600" />
+                      <div className="flex flex-col">
+                        <span className="font-black text-[10px] uppercase tracking-widest text-slate-400 mb-1">Authenticated</span>
+                        <span className="text-xs font-black text-slate-900 truncate max-w-[150px]">{user.email || 'Tactical Guest'}</span>
+                      </div>
+                    </div>
+                  )}
+                  <RoleCard href="/control-room" icon={<LayoutDashboard className="w-6 h-6" />} title="Control Room" description="Live Dashboard & Intel." />
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 pb-12 max-w-4xl mx-auto px-4">
-            <RoleCard href="/admin/children" icon={<UserCog className="w-6 h-6" />} title="Guardian Panel" description="Registry & ID Management." />
-            <RoleCard href="/volunteer" icon={<CameraIcon className="w-6 h-6" />} title="Volunteer App" description="QR Scanner & Dispatch Hub." />
-          </div>
-        </div>
-
-        {/* SOS Emergency Hub */}
-        <div className="w-full max-w-2xl animate-entrance pb-24 px-4">
-          <Card className="bg-red-50 border-4 border-red-600 shadow-2xl rounded-[2.5rem] overflow-hidden">
-            <div className="bg-red-600 text-white p-6 text-center">
-              <h3 className="flex items-center justify-center gap-3 text-2xl md:text-3xl font-black uppercase tracking-tighter"><Siren className="w-6 h-6 md:w-8 md:h-8 animate-pulse" /> Emergency SOS</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 pb-12 max-w-4xl mx-auto px-4">
+              <RoleCard href="/admin/children" icon={<UserCog className="w-6 h-6" />} title="Guardian Panel" description="Registry & ID Management." />
+              <RoleCard href="/volunteer" icon={<CameraIcon className="w-6 h-6" />} title="Volunteer App" description="QR Scanner & Dispatch Hub." />
             </div>
-            <CardContent className="p-6 md:p-8 space-y-6 text-center">
-              <p className="text-slate-900 font-bold text-base md:text-lg leading-tight">Immediate danger? Trigger a silent GPS panic signal to our tactical control room.</p>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button className="w-full h-16 md:h-20 text-xl md:text-2xl font-black uppercase shadow-xl bg-red-600 hover:bg-red-700 rounded-2xl border-b-8 border-red-900"><AlertTriangle className="mr-3 w-6 h-6 md:w-8 md:h-8" /> Trigger Panic SOS</Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent className="bg-slate-950 border-4 border-red-600 text-white rounded-[2rem] max-w-[90vw] md:max-w-lg">
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="flex items-center gap-3 text-xl md:text-2xl font-black uppercase text-red-500"><Siren className="w-6 h-6 md:w-8 md:h-8 animate-bounce" /> Confirm SOS</AlertDialogTitle>
-                    <AlertDialogDescription className="text-slate-300 font-bold text-sm md:text-base">Dispatch live GPS tracking to tactical response?</AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-                    <AlertDialogCancel className="bg-transparent border-2 border-white text-white font-black uppercase h-12 rounded-xl">Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={triggerGlobalSOS} className="bg-red-600 hover:bg-red-700 text-white font-black uppercase h-12 rounded-xl">{isSOSLoading ? <Loader2 className="animate-spin" /> : "Initiate SOS"}</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
-    </div>
+          </div>
+
+          {/* SOS Emergency Hub */}
+          <div className="w-full max-w-2xl animate-entrance pb-24 px-4">
+            <Card className="bg-red-50 border-4 border-red-600 shadow-2xl rounded-[2.5rem] overflow-hidden">
+              <div className="bg-red-600 text-white p-6 text-center">
+                <h3 className="flex items-center justify-center gap-3 text-2xl md:text-3xl font-black uppercase tracking-tighter"><Siren className="w-6 h-6 md:w-8 md:h-8 animate-pulse" /> Emergency SOS</h3>
+              </div>
+              <CardContent className="p-6 md:p-8 space-y-6 text-center">
+                <p className="text-slate-900 font-bold text-base md:text-lg leading-tight">Immediate danger? Trigger a silent GPS panic signal to our tactical control room.</p>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button className="w-full h-16 md:h-20 text-xl md:text-2xl font-black uppercase shadow-xl bg-red-600 hover:bg-red-700 rounded-2xl border-b-8 border-red-900"><AlertTriangle className="mr-3 w-6 h-6 md:w-8 md:h-8" /> Trigger Panic SOS</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="bg-slate-950 border-4 border-red-600 text-white rounded-[2rem] max-w-[90vw] md:max-w-lg">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="flex items-center gap-3 text-xl md:text-2xl font-black uppercase text-red-500"><Siren className="w-6 h-6 md:w-8 md:h-8 animate-bounce" /> Confirm SOS</AlertDialogTitle>
+                      <AlertDialogDescription className="text-slate-300 font-bold text-sm md:text-base">Dispatch live GPS tracking to tactical response?</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                      <AlertDialogCancel className="bg-transparent border-2 border-white text-white font-black uppercase h-12 rounded-xl">Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={triggerGlobalSOS} className="bg-red-600 hover:bg-red-700 text-white font-black uppercase h-12 rounded-xl">{isSOSLoading ? <Loader2 className="animate-spin" /> : "Initiate SOS"}</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+      </div>
+    </>
   );
 }
 

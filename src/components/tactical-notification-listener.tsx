@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useRef } from 'react';
@@ -36,7 +35,7 @@ export function TacticalNotificationListener() {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     
     if (Notification.permission === 'granted') {
-      // Use ServiceWorkerRegistration to avoid Illegal Constructor error in modern browsers
+      // Use ServiceWorkerRegistration to avoid Illegal Constructor error
       if ('serviceWorker' in navigator) {
         try {
           const registration = await navigator.serviceWorker.ready;

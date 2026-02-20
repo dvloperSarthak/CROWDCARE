@@ -1,27 +1,34 @@
+// Guardian Tactical Service Worker
+// Handles background notification interactions and redirection
 
-/**
- * Guardian Tactical Service Worker
- * Handles background notification clicks and redirects to active SITREPs.
- */
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(clients.claim());
+});
+
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
   
-  // Extract the tactical redirect URL from notification data
-  const targetUrl = event.notification.data?.url || '/';
-  
+  // Extract target URL from notification data packet
+  const urlToOpen = event.notification.data?.url || '/';
+
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
-      // Focus existing tactical window if available
-      for (let i = 0; i < clientList.length; i++) {
-        let client = clientList[i];
-        const clientPath = new URL(client.url).pathname;
-        if (clientPath === targetUrl && 'focus' in client) {
+    clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true
+    }).then(function(windowClients) {
+      // Logic to focus an existing tactical window or open a new one
+      for (var i = 0; i < windowClients.length; i++) {
+        var client = windowClients[i];
+        if (client.url.includes(urlToOpen) && 'focus' in client) {
           return client.focus();
         }
       }
-      // Open new tactical window if none exists
       if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
+        return clients.openWindow(urlToOpen);
       }
     })
   );
